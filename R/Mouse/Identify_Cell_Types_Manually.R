@@ -8,7 +8,7 @@ source("../R/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #====== 2.1 pathway analysis ==========================================
-lnames = load(file="./output/BladderCancer_20181026.RData")
+(lnames = load(file="./output/BladderCancer_20181026.RData"))
 
 gene_set = read.delim("./doc/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
                    stringsAsFactors = F)
@@ -24,14 +24,20 @@ for(i in 1:length(gene_set_list)){
 }
 
 BladderCancer_list <- SplitSeurat(object = BladderCancer, split.by = "orig.ident")
-
-levels <- BladderCancer_list[[length(BladderCancer_list)]];levels
-for(j in 1:length(gene_set_list)){
+gradient_list <- list(c("#c3d2e7", "#214069"),#blue
+                      c("#f7e5b3","#8a6601"), #orange
+                      c("#c1e2bf", "#1e601a"),#green
+                      c("#f4a3a4","#880f10"),#red
+                      c("#e7cdbe","#6a3518"), #brown
+                      c("#f999cb","#90014c")) #purple
+(levels <- BladderCancer_list[[length(BladderCancer_list)]])
+for(j in 1:5){
     p <- list()
     for(i in 1:length(levels)){
         p[[i]] <- SingleFeaturePlot.1(object = BladderCancer_list[[i]],
                                       feature = names(gene_set_list[j]),
-                                      title=levels[i], threshold = 0.25)
+                                      gradient.use = gradient_list[[j]],
+                                      title=levels[i], threshold = 0.1)
     }
     jpeg(paste0(path,names(gene_set_list[j]),".jpeg"), units="in", width=10, height=7,res=600)
     print(do.call(plot_grid, p))

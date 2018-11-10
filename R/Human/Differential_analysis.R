@@ -6,6 +6,7 @@
 
 library(Seurat)
 library(dplyr)
+library(tidyr)
 library(kableExtra)
 library(SingleR)
 source("../R/Seurat_functions.R")
@@ -20,7 +21,7 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 
 # 3.1.1 load data
 # Rename ident
-lnames = load(file="./output/BladderCancer_20181026.RData")
+lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda")
 
 BladderCancer <- SetAllIdent(BladderCancer,id = "res.0.6")
 TSNEPlot(BladderCancer)
@@ -38,6 +39,7 @@ DoHeatmap.1(BladderCancer,top,Top_n = 15,
             group.order = clusters,ident.use = "all cell types",
             group.label.rot = T,cex.row = 5,remove.key =T)
 
+# Gene heatmap arrange by gene set ======================
 gene_set = read.delim("./doc/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
                       stringsAsFactors = F)
 gene_set %>% kable() %>% kable_styling()
@@ -94,3 +96,27 @@ g_legend <- MakeCorlorBar(df = b_color_bar, cell_type = "Spermatogonia",
                           remove.legend = F, color = color)
 g_Spermatogonia <- MakeCorlorBar(df = b_color_bar, cell_type = "Spermatogonia",
                                  color = color)
+
+# gene set heatmap  ===========
+GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers",
+  "Basal_markers","Squamous_markers")
+BladderCancer <- SetAllIdent(BladderCancer,id = "orig.ident")
+jpeg(paste0(path,"/Heatmap~.jpeg"), units="in", width=10, height=7,res=600)
+DoHeatmap(BladderCancer,data.use = scale(t(BladderCancer@meta.data[,GeneSets]),center = F),
+          col.low = "#07e007",col.mid = "#FFFFFF", col.high = "#e00707",
+          group.label.rot = T,cex.row = 8, group.cex = 15,slim.col.label = TRUE, 
+          remove.key =F,title="Normalized lineage heatmap in human muscle-invasive bladder cancer")
+
+dev.off()
+
+# histgram  ===========
+data.use <- BladderCancer@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+        t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
+jpeg(paste0(path,"/density~.jpeg"), units="in", width=10, height=7,res=600)
+ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
+        geom_density(alpha = .5) + scale_y_sqrt() +
+        ggtitle("Normalized lineage scores in human muscle-invasive bladder cancer")+
+        theme(text = element_text(size=15),							
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold")) 
+dev.off()
+
