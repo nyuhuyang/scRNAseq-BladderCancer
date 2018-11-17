@@ -6,8 +6,10 @@
 
 library(Seurat)
 library(dplyr)
+library(tidyr)
 library(kableExtra)
 library(SingleR)
+library(gplots)
 source("../R/Seurat_functions.R")
 source("../R/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
@@ -55,67 +57,85 @@ heatmap_caterlog <- gsub("[[:digit:]]+","",names(unlist(gene_set_list)))
 top1 <- heatmap_genes[(heatmap_genes %in% top$gene)]
 vertical_bar <- heatmap_caterlog[(heatmap_genes %in% top$gene)]
 
-jpeg(paste0(path,"/Heatmap~.jpeg"), units="in", width=10, height=7,res=600)
+jpeg(paste0(path,"/Mouse_Heatmap.jpeg"), units="in", width=10, height=7,res=600)
 DoHeatmap(BladderCancer,genes.use = top1, #Top_n = 15,
             group.order = clusters,#ident.use = "all cell types",
             group.label.rot = F,cex.row = 8, group.cex = 8,slim.col.label = TRUE, 
           remove.key =T)
 dev.off()
 
-# Make color scheme vector
-# names must be ordered vector or factor
-as.data.frame(table(vertical_bar))
-color = c("#53B400","#00C094","#00B6EB","#A58AFF","#FB61D7","#F8766D","#C49A00")
-MakeCorlorBar <- function(df, color =NULL, remove.legend =F){
-        g <- ggplot(data = df, aes(x, major_cells, fill = time_points)) +
-                geom_tile()+
-                theme_bw() + 
-                theme(panel.border = element_blank(),
-                      panel.grid.major = element_blank(),
-                      panel.grid.minor = element_blank(),
-                      axis.line = element_blank(), 
-                      axis.title.x=element_blank(),
-                      axis.text.x=element_blank(),
-                      axis.ticks.x=element_blank(),
-                      axis.title.y=element_blank(),
-                      axis.text.y=element_blank(),
-                      axis.ticks.y=element_blank())
-        if(remove.legend) g = g + theme(legend.position="none")
-        if(!is.null(color)) {
-                colors_fill = color_scheme(color = color,
-                                           names = unique(df$time_points))
-                g = g + scale_fill_manual(values = colors_fill)
-        }
-        g
-}
-
-show_col(hue_pal()(7))
-table(b_color_bar[b_color_bar$major_cells == "Spermatids","time_points"])
-g_legend <- MakeCorlorBar(df = b_color_bar, cell_type = "Spermatogonia",
-                          remove.legend = F, color = color)
-g_Spermatogonia <- MakeCorlorBar(df = b_color_bar, cell_type = "Spermatogonia",
-                                 color = color)
-
 # gene set heatmap  ===========
 GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers",
               "Basal_markers","Squamous_markers")
 BladderCancer <- SetAllIdent(BladderCancer,id = "orig.ident")
-jpeg(paste0(path,"/Heatmap.jpeg"), units="in", width=10, height=7,res=600)
-DoHeatmap(BladderCancer,data.use = scale(t(BladderCancer@meta.data[,GeneSets]),center = F),
-          col.low = "#07e007",col.mid = "#FFFFFF", col.high = "#e00707",
-          group.label.rot = T,cex.row = 8, group.cex = 15,slim.col.label = TRUE, 
-          remove.key =F,title="Muscle-invasive bladder cancer lineage scores in mouse samples")
 
+y = scale(t(BladderCancer@meta.data[,GeneSets]))
+## Column clustering (adjust here distance/linkage methods to what you need!)
+hc <- hclust(as.dist(1-cor(y, method="pearson")), method="complete")
+cc = gsub("_.*","",hc$labels)
+cc = gsub("4950PP","#E31A1C",cc)
+cc = gsub("4950PN","#33A02C",cc)
+
+jpeg(paste0(path,"/Mouse_Heatmap_geneSet.jpeg"), units="in", width=10, height=7,res=600)
+heatmap.2(y,
+          Colv = as.dendrogram(hc), Rowv= FALSE,
+          ColSideColors = cc, trace ="none",labCol = FALSE,dendrogram = "column",#scale="row",
+          adjRow = c(1, NA),offsetRow = -52, cexRow = 1.5,
+          key.xlab = "Row z-score",
+          col = bluered)
+par(lend = 1)           # square line ends for the color legend
+legend(0, 0.83,       # location of the legend on the heatmap plot
+       legend = c("4950PP", "4950PN"), # category labels
+       col = c("#E31A1C", "#33A02C"),  # color key
+       lty= 1,             # line style
+       lwd = 10            # line width
+)
 dev.off()
 
-# histgram  ===========
-data.use <- BladderCancer@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
-        t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
-jpeg(paste0(path,"/density.jpeg"), units="in", width=10, height=7,res=600)
-ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
-        geom_density(alpha = .5) + scale_y_sqrt() +
+# geom_density  ===========
+BladderCancer_subset <- SplitSeurat(BladderCancer)
+samples <- BladderCancer_subset[[length(BladderCancer_subset)]]
+
+g <- list()
+for(i in 1:length(samples)){
+        data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+                t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
+        g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
+                geom_density(alpha = .5) + scale_y_sqrt() +
+                theme(legend.position="none")+
+                xlab("log nUMI z-score")+
+                ggtitle(samples[i])+
+                theme(text = element_text(size=15),
+                      legend.position=c(0.35,0.8),
+                      plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+}
+jpeg(paste0(path,"Mouse_density.jpeg"), units="in", width=10, height=7,res=600)
+do.call(plot_grid,g)+
         ggtitle("Muscle-invasive bladder cancer lineage scores in mouse samples")+
         theme(text = element_text(size=15),							
-              plot.title = element_text(hjust = 0.5,size = 15, face = "bold")) 
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
 dev.off()
 
+
+# histgram  ===========
+BladderCancer_subset <- SplitSeurat(BladderCancer)
+samples <- BladderCancer_subset[[length(BladderCancer_subset)]]
+
+g1 <- list()
+for(i in 1:length(samples)){
+        data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+                t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
+        g1[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
+                geom_histogram(binwidth=0.03, alpha=0.5, position="identity") + scale_y_sqrt() +
+                theme(legend.position="none")+
+                ggtitle(samples[i])+
+                theme(text = element_text(size=15),
+                      legend.position=c(0.35,0.8),
+                      plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+}
+jpeg(paste0(path,"Mouse_histogram.jpeg"), units="in", width=10, height=7,res=600)
+do.call(plot_grid,g1)+
+        ggtitle("Muscle-invasive bladder cancer lineage scores in mouse samples")+
+        theme(text = element_text(size=15),							
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+dev.off()

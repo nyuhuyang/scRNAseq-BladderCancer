@@ -8,7 +8,7 @@ source("../R/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #====== 2.1 pathway analysis ==========================================
-lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda")
+(lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda"))
 
 gene_set = read.delim("./doc/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
                    stringsAsFactors = F)
@@ -23,7 +23,22 @@ for(i in 1:length(gene_set_list)){
                                    ctrl.size = 5,enrich.name = names(gene_set_list[i]),
                                    only.pos = F)
 }
-
+#=============== multiple color in the single Featureplot===================================
+features.plot.list = list(c("Basal_markers","Luminal_markers"), 
+                          c("Basal_markers","EMT_and_claudin_markers"),
+                          c("Luminal_markers","EMT_and_claudin_markers"),
+                          c("Basal_markers","ITGA6"))
+cols.use.list = list(c("#F8766D", "#00B0F6","#E31A1C"),
+                     c("#F8766D", "#A3A500","#E31A1C"),
+                     c("#00B0F6", "#A3A500","#E31A1C"),
+                     c("#F8766D", "#00BF7D","#E31A1C"))
+for(i in 1:4){
+    jpeg(paste0(path,"Human_tsne_",i,".jpeg"), units="in", width=10, height=7,res=600)
+    FeaturePlot(object = BladderCancer, features.plot = features.plot.list[[i]], 
+                cols.use = c("grey",cols.use.list[[i]]), overlay = TRUE, no.legend = FALSE)
+    dev.off()
+}
+#=============== single color per Featureplot===================================
 BladderCancer_list <- SplitSeurat(object = BladderCancer, split.by = "orig.ident")
 gradient_list <- list(c("#c3d2e7", "#214069"),#blue
                       c("#f7e5b3","#8a6601"), #orange
@@ -57,10 +72,11 @@ marker.list %>% list2df %>% head(15) %>% kable() %>% kable_styling()
     p <- FeaturePlot(object = BladderCancer, 
                      reduction.use = "tsne",
                      features.plot = x, min.cutoff = NA, do.return =T,
-                     cols.use = c("lightgrey","blue"), pt.size = 0.5)
+                     cols.use = c("lightgrey","blue"), pt.size = 2)
     return(p)
 }
 
+marker.list = "ITGA6"
 for(i in 1:length(marker.list)){
     p <- .FeaturePlot(x = marker.list[[i]][1:9])+ ggtitle(names(marker.list)[i])+
         theme(plot.title = element_text(hjust = 0.5,size = 20, face = "bold"))
@@ -74,4 +90,9 @@ Epithelium <- HumanGenes(BladderCancer,c("Epcam","KRT19","KRT5","Cdh1",
 p <- .FeaturePlot(x = Epithelium)
 jpeg(paste0(path,"Epithelium",".jpeg"), units="in", width=10, height=7,res=600)
 print(do.call(plot_grid, p))
+dev.off()
+
+
+jpeg(paste0(path,"ITGA6",".jpeg"), units="in", width=10, height=7,res=600)
+print(.FeaturePlot(x = "ITGA6"))
 dev.off()
