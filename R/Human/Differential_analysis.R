@@ -22,7 +22,7 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 
 # 3.1.1 load data
 # Rename ident
-lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda")
+(lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda"))
 
 BladderCancer <- SetAllIdent(BladderCancer,id = "res.0.6")
 TSNEPlot(BladderCancer)
@@ -69,7 +69,7 @@ GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers
               "Basal_markers","Squamous_markers")
 BladderCancer <- SetAllIdent(BladderCancer,id = "orig.ident")
 
-y = scale(t(BladderCancer@meta.data[,GeneSets]))
+y = t(BladderCancer@meta.data[,GeneSets]) #%>% scale()
 ## Column clustering (adjust here distance/linkage methods to what you need!)
 hc <- hclust(as.dist(1-cor(y, method="pearson")), method="complete")
 cc = gsub("_.*","",hc$labels)
@@ -81,7 +81,7 @@ heatmap.2(y,
           Colv = as.dendrogram(hc), Rowv= FALSE,
           ColSideColors = cc, trace ="none",labCol = FALSE,dendrogram = "column",#scale="row",
           adjRow = c(1, NA),offsetRow = -52, cexRow = 1.5,
-          key.xlab = "Row z-score",
+          key.xlab = "Average expression (log nUMI)",
           col = bluered)
 par(lend = 1)           # square line ends for the color legend
 legend(0, 0.83,       # location of the legend on the heatmap plot
@@ -99,22 +99,22 @@ BladderCancer_subset <- SplitSeurat(BladderCancer)
 
 g <- list()
 for(i in 1:length(samples)){
-  data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
-    t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
-  g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
-    geom_density(alpha = .5) + scale_y_sqrt() +
-    theme(legend.position="none")+
-    xlab("log nUMI z-score")+
-    ggtitle(samples[i])+
-    theme(text = element_text(size=15),
-          legend.position=c(0.4,0.8),
-          plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+      data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+        t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
+      g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
+        geom_density(alpha = .5) + scale_y_sqrt() +
+        theme(legend.position="none")+
+        xlab("Average expression (log nUMI)")+
+        ggtitle(samples[i])+
+        theme(text = element_text(size=15),
+              legend.position=c(0.4,0.8),
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
 }
 jpeg(paste0(path,"Human_density.jpeg"), units="in", width=10, height=7,res=600)
 do.call(plot_grid,g)+
-  ggtitle("Muscle-invasive bladder cancer lineage scores in Human samples")+
-  theme(text = element_text(size=15),							
-        plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+      ggtitle("Muscle-invasive bladder cancer lineage scores in Human samples")+
+      theme(text = element_text(size=15),							
+            plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
 dev.off()
 
 
@@ -124,15 +124,15 @@ BladderCancer_subset <- SplitSeurat(BladderCancer)
 
 g1 <- list()
 for(i in 1:length(samples)){
-  data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
-    t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
-  g1[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
-    geom_histogram(binwidth=0.03, alpha=0.5, position="identity") + scale_y_sqrt() +
-    theme(legend.position="none")+
-    ggtitle(samples[i])+
-    theme(text = element_text(size=15),
-          legend.position=c(0.4,0.8),
-          plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+      data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+        t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
+      g1[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
+        geom_histogram(binwidth=0.03, alpha=0.5, position="identity") + scale_y_sqrt() +
+        theme(legend.position="none")+
+        ggtitle(samples[i])+
+        theme(text = element_text(size=15),
+              legend.position=c(0.4,0.8),
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
 }
 jpeg(paste0(path,"Human_histogram.jpeg"), units="in", width=10, height=7,res=600)
 do.call(plot_grid,g1)+

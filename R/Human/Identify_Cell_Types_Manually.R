@@ -38,7 +38,19 @@ for(i in 1:4){
                 cols.use = c("grey",cols.use.list[[i]]), overlay = TRUE, no.legend = FALSE)
     dev.off()
 }
-#=============== single color per Featureplot===================================
+
+features.plot = c("Basal_markers","EMT_and_claudin_markers","Luminal_markers")
+p <- list()
+for(i in 1:length(features.plot)){
+    p[[i]] <- SingleFeaturePlot.1(object = BladderCancer,
+                                  feature = features.plot[i],
+                                  threshold = 0.2)
+}
+jpeg(paste0(path,"Human_tsne.jpeg"), units="in", width=10, height=7,res=600)
+print(do.call(plot_grid, p))
+dev.off()
+
+#=============== single color per Featureplot for gene sets ===================================
 BladderCancer_list <- SplitSeurat(object = BladderCancer, split.by = "orig.ident")
 gradient_list <- list(c("#c3d2e7", "#214069"),#blue
                       c("#f7e5b3","#8a6601"), #orange
@@ -46,7 +58,7 @@ gradient_list <- list(c("#c3d2e7", "#214069"),#blue
                       c("#f4a3a4","#880f10"),#red
                       c("#e7cdbe","#6a3518"), #brown
                       c("#f999cb","#90014c")) #purple
-levels <- BladderCancer_list[[length(BladderCancer_list)]];levels
+(levels <- BladderCancer_list[[length(BladderCancer_list)]])
 for(j in 1:5){
     p <- list()
     for(i in 1:length(levels)){
@@ -60,6 +72,20 @@ for(j in 1:5){
     dev.off()
 }
 
+for(j in 1:5/5){
+    p <- list()
+    for(i in 1:length(levels)){
+        p[[i]] <- SingleFeaturePlot.1(object = BladderCancer_list[[i]],
+                                      feature = "Luminal_markers",
+                                      title=levels[i], threshold = j)
+    }
+    jpeg(paste0(path,"Luminal_markers_",j,".jpeg"), units="in", width=10, height=7,res=600)
+    print(do.call(plot_grid, p)+
+              ggtitle(paste0("threshold = ",j))+
+              theme(text = element_text(size=15),
+                    plot.title = element_text(hjust = 0.5,size = 15, face = "bold")))
+    dev.off()
+}
 #====== 2.2 marker gene analysis ==========================================
 Blueprint_encode = read.csv("../SingleR/output/Hpca_Blueprint_encode_main.csv",row.names =1,header = T,
                       stringsAsFactors = F)

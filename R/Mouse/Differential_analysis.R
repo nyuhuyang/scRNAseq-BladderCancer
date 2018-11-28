@@ -69,14 +69,14 @@ GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers
               "Basal_markers","Squamous_markers")
 BladderCancer <- SetAllIdent(BladderCancer,id = "orig.ident")
 
-y = scale(t(BladderCancer@meta.data[,GeneSets]))
+y = t(BladderCancer@meta.data[,GeneSets]) %>% scale()
 ## Column clustering (adjust here distance/linkage methods to what you need!)
 hc <- hclust(as.dist(1-cor(y, method="pearson")), method="complete")
 cc = gsub("_.*","",hc$labels)
 cc = gsub("4950PP","#E31A1C",cc)
 cc = gsub("4950PN","#33A02C",cc)
 
-jpeg(paste0(path,"/Mouse_Heatmap_geneSet.jpeg"), units="in", width=10, height=7,res=600)
+jpeg(paste0(path,"/Mouse_Heatmap_geneSet_zscore.jpeg"), units="in", width=10, height=7,res=600)
 heatmap.2(y,
           Colv = as.dendrogram(hc), Rowv= FALSE,
           ColSideColors = cc, trace ="none",labCol = FALSE,dendrogram = "column",#scale="row",
@@ -103,7 +103,7 @@ for(i in 1:length(samples)){
         g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
                 geom_density(alpha = .5) + scale_y_sqrt() +
                 theme(legend.position="none")+
-                xlab("log nUMI z-score")+
+                xlab("Average expression (log nUMI)")+
                 ggtitle(samples[i])+
                 theme(text = element_text(size=15),
                       legend.position=c(0.35,0.8),
