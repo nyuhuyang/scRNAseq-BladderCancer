@@ -12,7 +12,7 @@ library(SingleR)
 library(gplots)
 source("../R/Seurat_functions.R")
 source("../R/SingleR_functions.R")
-path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
+path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #3.1  Compare DE across all major cell types==================
 #We would need the data for all clusters, as well the subclusters.
@@ -94,33 +94,33 @@ dev.off()
 
 
 # geom_density  ===========
+GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers",
+              "Basal_markers","Squamous_markers")
 BladderCancer_subset <- SplitSeurat(BladderCancer)
-(samples <- BladderCancer_subset[[length(BladderCancer_subset)]])
+(samples <- BladderCancer@meta.data$orig.ident %>% unique %>% sort)
 
-g <- list()
-for(i in 1:length(samples)){
-      data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
-        t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
-      g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
-        geom_density(alpha = .5) + scale_y_sqrt() +
-        theme(legend.position="none")+
-        xlab("Average expression (log nUMI)")+
-        ggtitle(samples[i])+
-        theme(text = element_text(size=15),
-              legend.position=c(0.4,0.8),
-              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
-}
-jpeg(paste0(path,"Human_density.jpeg"), units="in", width=10, height=7,res=600)
-do.call(plot_grid,g)+
-      ggtitle("Muscle-invasive bladder cancer lineage scores in Human samples")+
-      theme(text = element_text(size=15),							
-            plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+g <-  BladderCancer_subset[[1]]@meta.data[,GeneSets] %>% as.data.frame %>% 
+      gather(key = Subtypes.markers, value = ave.expr) %>%
+      ggplot(aes(x = ave.expr, color = Subtypes.markers)) + 
+          geom_density(size = 1) +
+          scale_y_sqrt() + #ylim(0, 1)+
+          xlab("lineage score")+
+          #ggtitle(samples[1])+
+          theme(text = element_text(size=15),
+                #legend.position="none", 
+                legend.position=c(0.35,0.85) ,
+                plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))+
+        geom_vline(xintercept=0,size = 1.5) #Adding vertical line in plot ggplot
+
+jpeg(paste0(path,"density_mouse.jpeg"), units="in", width=10, height=7,res=600)
+print(g+ggtitle("Muscle-invasive bladder cancer lineage scores in CD45 negative mouse samples")+
+        theme(text = element_text(size=15),							
+              plot.title = element_text(hjust = 0.5,size = 15, face = "bold")))
 dev.off()
-
 
 # histgram  ===========
 BladderCancer_subset <- SplitSeurat(BladderCancer)
-(samples <- BladderCancer_subset[[length(BladderCancer_subset)]])
+(samples <- BladderCancer@meta.data$orig.ident %>% unique %>% sort)
 
 g1 <- list()
 for(i in 1:length(samples)){
@@ -139,4 +139,24 @@ do.call(plot_grid,g1)+
   ggtitle("Muscle-invasive bladder cancer lineage scores in Human samples")+
   theme(text = element_text(size=15),							
         plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+dev.off()
+
+# bar chart  ===========
+#scheme one. Any cells with lineage score >0 will be assigned the correspondence subypte labels.
+g <-  BladderCancer_subset[[1]]@meta.data[,GeneSets] %>%
+             apply(2,function(y) length(y[y>0])) %>%
+             c("Total"= nrow(BladderCancer_subset[[1]]@meta.data), .) %>%
+      data.frame("Subtype" = gsub("_markers", "",names(.)),
+              "cell numbers" = ., row.names = NULL)%>%
+      ggplot(aes(x = reorder(Subtype, -cell.numbers), y = cell.numbers, fill = Subtype)) + 
+          geom_bar(stat="identity")+theme_minimal()+
+          theme(axis.text.x=element_text(angle=45, hjust=1))+
+      xlab("Sub cell types")+
+      scale_fill_manual(values=c(gg_color_hue(5),"#999999"))+
+      ggtitle("Total and subtype bladder cancer cell numbers in CD45 negative mouse samples")+
+      theme(text = element_text(size=15),							
+            plot.title = element_text(hjust = 0.2,size = 15, face = "bold"))
+
+jpeg(paste0(path,"Mouse_bar_chart.jpeg"), units="in", width=10, height=7,res=600)
+g
 dev.off()

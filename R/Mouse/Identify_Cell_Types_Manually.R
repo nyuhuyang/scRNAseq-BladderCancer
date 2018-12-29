@@ -3,6 +3,7 @@ library(SingleR)
 library(dplyr)
 library(tidyr)
 library(kableExtra)
+library(magrittr)
 source("../R/Seurat_functions.R")
 source("../R/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
@@ -92,3 +93,13 @@ dev.off()
 jpeg(paste0(path,"m_ITGA6",".jpeg"), units="in", width=10, height=7,res=600)
 print(.FeaturePlot(x = "Itga6"))
 dev.off()
+
+# pull marker genes from panel
+mouse.rnaseq_main = read.csv("../SingleR/output/mouse.rnaseq_main.csv",
+                             row.names =1, header = T, stringsAsFactors = F)
+immgen_main = read.csv("../SingleR/output/immgen_main.csv",
+                             row.names =1, header = T, stringsAsFactors = F) 
+
+immgen_main %<>% lapply(function(x) Hmisc::capitalize(tolower(x)))
+
+(intersect(mouse.rnaseq_main$T_cells, immgen_main$T_cells))[1:10]
