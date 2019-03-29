@@ -8,7 +8,7 @@ library(Seurat)
 library(dplyr)
 library(scran)
 library(kableExtra)
-source("../R/Seurat_functions.R")
+source("R/utils/Seurat_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 ########################################################################
@@ -57,11 +57,11 @@ BladderCancer <- FilterCells(BladderCancer, subset.names = "nGene",
     NormalizeData() %>%
     ScaleData(display.progress = FALSE) %>%
     FindVariableGenes(do.plot = FALSE, display.progress = FALSE)
-save(BladderCancer, file = "./data/BladderCancer_20181026.Rda")
+save(BladderCancer, file = "./data/BladderCancer_M2_20181026.Rda")
 
 #======1.2 QC, pre-processing and normalizing the data=========================
 # 1.2.1 Calculate median UMI per cell
-Iname = load(file = "./data/BladderCancer_20181026.Rda")
+Iname = load(file = "./data/BladderCancer_M2_20181026.Rda")
 # 1.2.3 calculate mitochondria percentage
 mito.genes <- grep(pattern = "^mt-", x = rownames(x = BladderCancer@data), value = TRUE)
 percent.mito <- Matrix::colSums(BladderCancer@raw.data[mito.genes, ])/Matrix::colSums(BladderCancer@raw.data)
@@ -121,12 +121,12 @@ p1 <- TSNEPlot(object = BladderCancer, do.label = F, group.by = "orig.ident",
     theme(text = element_text(size=15),							
           plot.title = element_text(hjust = 0.5,size = 18, face = "bold")) 
 
-save(BladderCancer, file = "./data/BladderCancer_20181026.Rda")
-Iname = load("./data/BladderCancer_20181026.Rda")
+save(BladderCancer, file = "./data/BladderCancer_M2_20181026.Rda")
+Iname = load("./data/BladderCancer_M2_20181026.Rda")
 
 #======1.4 Add Cell-cycle score =========================
 # Read in a list of cell cycle markers, from Tirosh et al, 2015
-cc.genes <- readLines(con = "../seurat_resources/regev_lab_cell_cycle_genes.txt")
+cc.genes <- readLines(con = "R/seurat_resources/regev_lab_cell_cycle_genes.txt")
 # We can segregate this list into markers of G2/M phase and markers of S phase
 s.genes <- MouseGenes(BladderCancer,cc.genes[1:43])
 g2m.genes <- MouseGenes(BladderCancer,cc.genes[44:97])
@@ -233,4 +233,4 @@ jpeg(paste0(path,"split_tsneplot.jpeg"), units="in", width=10, height=7,res=600)
 print(do.call(plot_grid,p4))
 dev.off()
 
-save(BladderCancer, file = "./data/BladderCancer_20181026.Rda")
+save(BladderCancer, file = "./data/BladderCancer_M2_20181026.Rda")

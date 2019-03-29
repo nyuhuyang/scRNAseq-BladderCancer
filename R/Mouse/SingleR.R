@@ -4,12 +4,12 @@ library(reshape2)
 library(pheatmap)
 library(kableExtra)
 library(dplyr)
-source("../R/Seurat_functions.R")
-source("../R/SingleR_functions.R")
+source("R/utils/Seurat_functions.R")
+source("R/utils/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
 #====== 3.1 Create Singler Object  ==========================================
-lname1 = load(file = "./data/BladderCancer_20181026.Rda");lname1
+lname1 = load(file = "./data/BladderCancer_M2_20181026.Rda");lname1
 singler = CreateSinglerObject(BladderCancer@data, annot = NULL, project.name=BladderCancer@project.name,
                               min.genes = 500,technology = "10X", species = "Mouse", citation = "",
                               normalize.gene.length = F, variable.genes = "de",
@@ -19,12 +19,12 @@ length(singler$singler[[1]]$SingleR.single$labels) == ncol(BladderCancer@data)
 singler$meta.data$orig.ident = BladderCancer@meta.data$orig.ident # the original identities, if not supplied in 'annot'
 singler$meta.data$xy = BladderCancer@dr$tsne@cell.embeddings # the tSNE coordinates
 singler$meta.data$clusters = BladderCancer@ident # the Seurat clusters (if 'clusters' not provided)
-save(singler,file="./output/singler_BladderCancer_20181026.RData")
+save(singler,file="./output/singler_BladderCancer_M2_20181026.Rda")
 #====== 3.2 SingleR specifications ==========================================
 # Step 1: Spearman coefficient
-lnames = load(file = "./output/singler_BladderCancer_20181026.RData")
-lnames = load(file = "../SingleR/data/immgen.rda") 
-lnames = load(file = "../SingleR/data/mouse.rnaseq.rda") 
+lnames = load(file = "./output/singler_BladderCancer_M2_20181026.Rda")
+attach(immgen)
+attach(mouse.rnaseq)
 
 singler$seurat = BladderCancer
 SingleR.DrawScatter(sc_data = singler$seurat@data,cell_id = 10, 
@@ -183,7 +183,7 @@ jpeg(paste0(path,"PlotTsne_main1~.jpeg"), units="in", width=10, height=7,
 print(p3)
 dev.off()
 
-save(BladderCancer,file="./output/BladderCancer_20181026.RData")
+save(BladderCancer,file="./output/BladderCancer_M2_20181026.Rda")
 ##############################
 # subset Seurat
 ###############################

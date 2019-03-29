@@ -4,12 +4,12 @@ library(dplyr)
 library(tidyr)
 library(kableExtra)
 library(magrittr)
-source("../R/Seurat_functions.R")
-source("../R/SingleR_functions.R")
+source("R/utils/Seurat_functions.R")
+source("R/utils/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #====== 2.1 pathway analysis ==========================================
-(lnames = load(file="./output/BladderCancer_20181026.RData"))
+(load(file="./data/BladderCancer_M2_20181026.Rda")
 
 gene_set = read.delim("./doc/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
                    stringsAsFactors = F)
@@ -61,7 +61,7 @@ for(j in 1:5){
 }
 
 #====== 2.2 marker gene analysis ==========================================
-immgen_main = read.csv("../SingleR/output/immgen_main.csv",row.names =1,header = T,
+immgen_main = read.csv("R/seurat_resources/immgen_main.csv",row.names =1,header = T,
                       stringsAsFactors = F)
 marker.list <- df2list(immgen_main)
 marker.list <- lapply(marker.list, function(x) MouseGenes(BladderCancer,x))
@@ -95,11 +95,40 @@ print(.FeaturePlot(x = "Itga6"))
 dev.off()
 
 # pull marker genes from panel
-mouse.rnaseq_main = read.csv("../SingleR/output/mouse.rnaseq_main.csv",
+mouse.rnaseq_main = read.csv("R/seurat_resources/mouse.rnaseq_main.csv",
                              row.names =1, header = T, stringsAsFactors = F)
-immgen_main = read.csv("../SingleR/output/immgen_main.csv",
+immgen_main = read.csv("R/seurat_resources/immgen_main.csv",
                              row.names =1, header = T, stringsAsFactors = F) 
 
 immgen_main %<>% lapply(function(x) Hmisc::capitalize(tolower(x)))
 
 (intersect(mouse.rnaseq_main$T_cells, immgen_main$T_cells))[1:10]
+
+#===== for Jan 15, 2019 email========
+library(biomaRt)
+human = biomaRt::useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = biomaRt::useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+searchAttributes(mouse, "mgi_symbol")
+searchAttributes(human, "hgnc_symbol")
+
+hmarkers <-c("APOBEC3A","APOBEC3B","APOBEC3D","APOBEC3C",
+            "APOBEC3G","APOBEC3F","APOBEC3H","AID")
+(markers = biomaRt::getLDS(attributes = c("hgnc_symbol"), 
+                           filters = "hgnc_symbol", 
+                           values = hmarkers, mart = human, 
+                           attributesL = c("mgi_symbol"), martL = mouse))
+
+
+mmarkers <-c("Apobec1","Apobec3","Apobec2")
+(df_markers = biomaRt::getLDS(attributes = c("mgi_symbol"), 
+                           filters = "mgi_symbol", 
+                           values = mmarkers, mart = mouse, 
+                           attributesL = c("hgnc_symbol"), martL = human))
+colnames(df_markers) = c("markers","markers.Alias")
+
+SplitSingleFeaturePlot(BladderCancer, 
+                       #alias = Alias(df = df_markers, gene = marker), 
+                       group.by = "ident",split.by = "orig.ident",
+                       no.legend = T,label.size=3,do.print =T,nrow = 1,
+                       markers = df_markers$markers, threshold = NULL)
+

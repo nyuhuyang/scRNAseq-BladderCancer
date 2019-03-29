@@ -6,8 +6,8 @@
 library(DropletUtils)
 library(scater)
 library(EnsDb.Hsapiens.v86)
-source("../R/Seurat_functions.R")
-source("../R/scatter_utils.R")
+source("R/utils/Seurat_functions.R")
+source("R/utils/scatter_utils.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 ########################################################################

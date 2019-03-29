@@ -10,8 +10,8 @@ library(tidyr)
 library(kableExtra)
 library(SingleR)
 library(gplots)
-source("../R/Seurat_functions.R")
-source("../R/SingleR_functions.R")
+source("R/utils/Seurat_functions.R")
+source("R/utils/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #3.1  Compare DE across all major cell types==================
@@ -22,7 +22,7 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 
 # 3.1.1 load data
 # Rename ident
-lnames = load(file="./output/BladderCancer_20181026.RData")
+lnames = load(file="./output/BladderCancer_M2_20181026.Rda")
 
 BladderCancer <- SetAllIdent(BladderCancer,id = "res.0.6")
 TSNEPlot(BladderCancer)

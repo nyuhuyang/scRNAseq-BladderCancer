@@ -3,16 +3,17 @@ library(SingleR)
 library(dplyr)
 library(tidyr)
 library(kableExtra)
-source("../R/Seurat_functions.R")
-source("../R/SingleR_functions.R")
+source("R/utils/Seurat_functions.R")
+source("R/utils/SingleR_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #====== 2.1 pathway analysis ==========================================
-(lnames = load(file="./output/H_BladderCancer_CCA_20181109.Rda"))
+(lnames = load(file="./data/BladderCancer_H2_20181109.Rda"))
 
 gene_set = read.delim("./doc/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
                    stringsAsFactors = F)
-gene_set %>% kable() %>% kable_styling()
+gene_set %>% kable %>% kable_styling
+rownames(gene_set) <- gsub("_markers","",rownames(gene_set))
 gene_set.df <- as.data.frame(t(gene_set))
 
 gene_set.list <- df2list(gene_set.df)
@@ -32,9 +33,10 @@ cols.use.list = list(c("#F8766D", "#00B0F6","#E31A1C"),
                      c("#F8766D", "#A3A500","#E31A1C"),
                      c("#00B0F6", "#A3A500","#E31A1C"),
                      c("#F8766D", "#00BF7D","#E31A1C"))
+split.BladderCancer <- SplitSeurat(BladderCancer)
 for(i in 1:4){
-    jpeg(paste0(path,"Human_tsne_",i,".jpeg"), units="in", width=10, height=7,res=600)
-    FeaturePlot(object = BladderCancer, features.plot = features.plot.list[[i]], 
+    jpeg(paste0(path,"Human_tsne_359_",i,".jpeg"), units="in", width=10, height=7,res=600)
+    FeaturePlot(object = split.BladderCancer[[2]], features.plot = features.plot.list[[i]], 
                 cols.use = c("grey",cols.use.list[[i]]), overlay = TRUE, no.legend = FALSE)
     dev.off()
 }
@@ -87,7 +89,7 @@ for(j in 1:5/5){
     dev.off()
 }
 #====== 2.2 marker gene analysis ==========================================
-Blueprint_encode = read.csv("../SingleR/output/Hpca_Blueprint_encode_main.csv",row.names =1,header = T,
+Blueprint_encode = read.csv("R/seurat_resources/Hpca_Blueprint_encode_main.csv",row.names =1,header = T,
                       stringsAsFactors = F)
 marker.list <- df2list(Blueprint_encode)
 marker.list <- lapply(marker.list, function(x) HumanGenes(BladderCancer,x))
@@ -122,3 +124,18 @@ dev.off()
 jpeg(paste0(path,"ITGA6",".jpeg"), units="in", width=10, height=7,res=600)
 print(.FeaturePlot(x = "ITGA6"))
 dev.off()
+
+HumanGenes(BladderCancer,c("PTPRC"))
+df_markers = data.frame("gene" = "PTPRC", "gene.alias" = "CD45")
+SplitSingleFeaturePlot(BladderCancer, alias = df_markers, 
+                       group.by = "ident",split.by = "orig.ident",
+                       no.legend = T,label.size=3,do.print =T,nrow = 1,
+                       markers = "PTPRC", threshold = NULL)
+
+hmarkers <- HumanGenes(BladderCancer, c("APOBEC3A","APOBEC3B","APOBEC3D","APOBEC3C",
+                                        "APOBEC3G","APOBEC3F","APOBEC3H","AICDA"))
+df_markers = data.frame("gene" = "AICDA", "gene.alias" = "AID")
+SplitSingleFeaturePlot(BladderCancer, alias = df_markers, 
+                       group.by = "ident",split.by = "orig.ident",
+                       no.legend = T,label.size=3,do.print =T,nrow = 1,
+                       markers = hmarkers, threshold = 0.1)

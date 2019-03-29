@@ -7,7 +7,7 @@
 library(Seurat)
 library(dplyr)
 library(kableExtra)
-source("../R/Seurat_functions.R")
+source("R/utils/Seurat_functions.R")
 path <- paste0("./output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 ########################################################################
@@ -102,7 +102,7 @@ GC();GC();GC();GC();GC();GC();GC();GC();GC();GC()
 BladderCancer <- RunCCA(seurat_list[[1]],seurat_list[[2]], 
                    genes.use = genes.use,
                    num.cc = 30)
-save(BladderCancer, file = "./data/H_BladderCancer_CCA_20181109.Rda")
+save(BladderCancer, file = "./data/BladderCancer_H2_20181109.Rda")
 # 1.2.3 calculate mitochondria percentage
 mito.genes <- grep(pattern = "^MT-", x = rownames(x = BladderCancer@data), value = TRUE)
 percent.mito <- Matrix::colSums(BladderCancer@raw.data[mito.genes, ])/Matrix::colSums(BladderCancer@raw.data)
@@ -162,8 +162,7 @@ p1 <- TSNEPlot(object = BladderCancer, do.label = F, group.by = "orig.ident",
     theme(text = element_text(size=15),							
           plot.title = element_text(hjust = 0.5,size = 18, face = "bold")) 
 
-save(BladderCancer, file = "./data/H_BladderCancer_CCA_20181109.Rda")
-Iname = load("./data/H_BladderCancer_CCA_20181109.Rda")
+save(BladderCancer, file = "./data/BladderCancer_H2_20181109.Rda")
 
 
 
@@ -208,11 +207,11 @@ dev.off()
 table(BladderCancer@meta.data$orig.ident)
 
 
-save(BladderCancer, file = "./data/BladderCancer_CCA_20181107.Rda")
+save(BladderCancer, file = "./data/BladderCancer_H2_20181109.Rda")
 
 #======1.4 Add Cell-cycle score =========================
 # Read in a list of cell cycle markers, from Tirosh et al, 2015
-cc.genes <- readLines(con = "../seurat_resources/regev_lab_cell_cycle_genes.txt")
+cc.genes <- readLines(con = "R/seurat_resources/regev_lab_cell_cycle_genes.txt")
 # We can segregate this list into markers of G2/M phase and markers of S phase
 s.genes <- HumanGenes(BladderCancer,cc.genes[1:43])
 g2m.genes <- HumanGenes(BladderCancer,cc.genes[44:97])
@@ -288,4 +287,4 @@ jpeg(paste0(path,"split_tsneplot.jpeg"), units="in", width=10, height=7,res=600)
 print(do.call(plot_grid,p4))
 dev.off()
 
-save(BladderCancer, file = "./data/H_BladderCancer_CCA_20181109.Rda")
+save(BladderCancer, file = "./data/BladderCancer_H2_20181109.Rda")
