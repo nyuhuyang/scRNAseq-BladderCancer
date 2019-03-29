@@ -1,9 +1,9 @@
 # scRNAseq-BladderCancer
-Collaboration with Bishoy Morris Faltas (bmf9003@med.cornell.edu) at Weill Cornell and David Mulholland (david.mulholland@mssm.edu) at Mount Sinai for invasive Bladder Cancer project.
+Collaboration with Bishoy Morris Faltas (bmf9003@med.cornell.edu) at Weill Cornell and David Mulholland (david.mulholland@mssm.edu) at Mount Sinai for Invasive Bladder Cancer project.
 
 ## METHOD
 
-Single-cell RNA-seq data is pre-processed with the scater R package. Data normalization, unsupervised cell clustering, and differential expression analysis were carried out by the Seurat R package. Reference-based cell type annotation were carried out using the SingleR R package.
+Single-cell RNA-seq data is pre-processed with the scater R package. Data normalization, unsupervised cell clustering, and differential expression analysis were carried out by the Seurat R package. Reference-based cell type annotation was carried out using the SingleR R package.
 
 ## How to use this Script
 
@@ -28,9 +28,9 @@ After running these two scripts, `sce_list_Human_{date}.Rda` and `sce_list_Mouse
 <a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/Seurat_setup.R">Seurat_setup.R</a> for human<br />
 <a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/Seurat_setup.R">Seurat_setup.R</a> for mouse<br />
 
-Cells with less than 800 genes or 1500 UMIs or more than 15% of mitochondria genes were excluded from the analysis. Gene expression raw counts were normalized following a global-scaling normalization method with a scale factor of 10,000 and natural log transformation, using the Seurat NormalizeData function. The top 2000 highly variable genes were selected using the expression and dispersion (variance/mean) of genes, followed by a canonical correlation analysis (CCA) to identify common sources of variation between the patient and normal datasets. The first 20 CCA results were chosen to generate dimensional t-Distributed Stochastic Neighbor Embedding (tSNE) plots, and cell clustering by a shared nearest neighbor (SNN) modularity optimization based clustering algorithm.
+Cells with less than 800 genes or 1500 UMIs or more than 15% of mitochondria genes were excluded from the analysis. Gene expression raw counts were normalized following a global-scaling normalization method with a scale factor of 10,000 and natural log transformation, using the Seurat NormalizeData function. The top 2000 highly variable genes were selected using the expression and dispersion (variance/mean) of genes, followed by canonical correlation analysis (CCA) to identify common sources of variation between the patient and normal datasets. The first 20 CCA results were chosen to generate dimensional t-Distributed Stochastic Neighbor Embedding (tSNE) plots, and cell clustering by a shared nearest neighbor (SNN) modularity optimization based clustering algorithm.
 
-Need to modify the code accoridng to the date. After running these two scripts, `BladderCancer_H2_{date}.Rda` and `BladderCancer_H2_{date}.Rda` files will be generated inside **_data_** folder.
+Need to modify the code according to the date. After running these two scripts, `BladderCancer_H2_{date}.Rda` and `BladderCancer_H2_{date}.Rda` files will be generated inside **_data_** folder.
  Do not modify any files in **_data_** folder.
  
 ### 3. SingleR.R
@@ -45,7 +45,6 @@ After running this script, `singler_BladderCancer_H2_{date}.RData` and `singler_
 <a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/Identify_Cell_Types_Manually.R">Identify_Cell_Types_Manually.R</a> for Mouse<br />
 All clusters are tested against marker genes and gene sets.
 
-`DotPlot` is implemented for visualizing differential expressed marker genes.
 Multiple plots and table will be generated, save them when necessary. 
 
 ### 5. Differential_analysis.R
@@ -74,4 +73,4 @@ pct.2: The percentage of cells where the gene is detected in the second group.<b
 p_val_adj: Adjusted p-value, based on Bonferroni correction<br />
 UMI.1 is average nUMI of the current cluster.<br />
 UMI.2 is average nUMI of rest of clusters.<br />
-cluster : either cell type or corresponding cluster.
+cluster: either cell type or corresponding cluster.
