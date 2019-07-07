@@ -5,7 +5,6 @@ library(pheatmap)
 library(kableExtra)
 library(dplyr)
 source("R/utils/Seurat3_functions.R")
-
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
 #====== 3.1 Create Singler Object  ==========================================

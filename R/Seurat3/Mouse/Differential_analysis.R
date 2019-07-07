@@ -3,13 +3,13 @@
 #  0 setup environment, install libraries if necessary, load libraries
 # 
 # ######################################################################
-
 library(Seurat)
 library(dplyr)
 library(tidyr)
 library(kableExtra)
 library(gplots)
-source("../R/Seurat3_functions.R")
+library(MAST)
+source("R/utils/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #3.1  Compare DE across all major cell types==================
@@ -22,17 +22,39 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 # Rename ident
 (load(file = "data/BladderCancer_mm10_6_20190706.Rda"))
 Idents(object) <-"RNA_snn_res.0.6"
-TSNEPlot(object)
-BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, 
+object <- sortIdent(object,numeric = T)
+#TSNEPlot(object)
+BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, logfc.threshold = 0.5,
                                         test.use = "MAST")
-write.csv(BladderCancer.markers,paste0(path,"BladderCancer_markers.csv"))
-BladderCancer.markers =read.csv(file = paste0(path,"BladderCancer_markers.csv"),
-                                row.names = 1, stringsAsFactors=F)
+write.csv(BladderCancer.markers,paste0(path,"BladderCancer_markers_clusters_logfc1.csv"))
+top <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(3, avg_logFC)
+object %<>% ScaleData(features = top$gene)
+DoHeatmap.1(object, marker_df = BladderCancer.markers, Top_n = 3, do.print=T, angle = 0,
+            group.bar = T, title.size = 20, no.legend = F,size=5,hjust = 0.5,
+            label=T, cex.row=6, legend.size = NULL,width=10, height=7,unique.name = T,
+            title = "Top 30 markers in CD45-negative and CD45-positive")
 
-DoHeatmap.1(object,BladderCancer.markers,Top_n = 3, do.print=T,angle = 0,
-            group.bar = T,title.size = 20, no.legend = F,size=4,label=T,
-            title = "Top 3 markers in all clusters in 4950PN, PP, and B5011")
+# split by conditions
+Idents(object) = "conditions"
+table(object@meta.data$conditions)
+conditions.markers <- FindAllMarkers.UMI(object = object, only.pos = F,logfc.threshold = 0.5,
+                                         test.use = "MAST")
+write.csv(conditions.markers,paste0(path,"BladderCancer_markers_conditions_logfc0.5.csv"))
+top <-  conditions.markers %>% group_by(cluster) %>% top_n(50, avg_logFC)
+object %<>% ScaleData(features = top$gene)
+DoHeatmap.1(object, marker_df = conditions.markers, Top_n = 40, do.print=T, angle = 0,
+            group.bar = T, title.size = 20, no.legend = F,size=5,hjust = 0.5,
+            label=F, cex.row=7, legend.size = NULL,width=10, height=7,unique.name = T,
+            title = "Top 40 markers in CD45-negative and CD45-positive")
 
+FeaturePlot(object, features = c("Cd74","Krt15"), split.by = "conditions", max.cutoff = 3, 
+            cols = c("grey", "red"))
+
+plots <- VlnPlot(object, features = c("Cd74","Krt15","Trp53"), split.by = "conditions", group.by = "singler1sub", 
+                 pt.size = 0, combine = FALSE)
+jpeg(paste0(path,"Mouse_VlnPlot.jpeg"), units="in", width=7, height=10,res=600)
+CombinePlots(plots = plots, ncol = 1,legend = "bottom",label_x=1)
+dev.off()
 #split by samples
 object$tumor = gsub('4950PN|4950PP','4950',object$orig.ident)
 Idents(object) <- "RNA_snn_res.0.6"
@@ -40,12 +62,14 @@ Idents(object) <- "RNA_snn_res.0.6"
 TSNEPlot.1(object,group.by = "RNA_snn_res.0.6",split.by = "tumor",do.print=T)
 
 Idents(object) <- "tumor"
-B5011_4950.markers <- FindAllMarkers.UMI(object = object, only.pos = F, 
+all_clusters.markers <- FindAllMarkers.UMI(object = object, only.pos = F, 
                                             test.use = "MAST")
-write.csv(B5011_4950.markers,paste0(path,"B5011_4950.markers.csv"))
+write.csv(all_clusters.markers,paste0(path,"B5011_4950.markers.csv"))
 DoHeatmap.1(object,B5011_4950.markers,Top_n = 25, do.print=T,angle = 0,
             group.bar = T,title.size = 20, no.legend = F,size=4,label=T,
             title = "Top 25 markers in between 4950 and B5011")
+
+
 
 # gene set heatmap  ===========
 GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers",
