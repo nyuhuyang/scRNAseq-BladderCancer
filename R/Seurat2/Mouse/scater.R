@@ -3,7 +3,8 @@
 #  0 setup environment, install libraries if necessary, load libraries
 # 
 # ######################################################################
-invisible(lapply(c("DropletUtils","dplyr","scater","kableExtra","Matrix"), function(x) {
+invisible(lapply(c("DropletUtils","dplyr","scater","kableExtra","Matrix",
+                   "scran","BiocSingular","readxl"), function(x) {
         suppressPackageStartupMessages(library(x,character.only = T))
 }))
 source("../R/Seurat_functions.R")
@@ -17,38 +18,32 @@ if(!dir.exists(path)) dir.create(path, recursive = T)
 # ######################################################################
 # 0.1. Setting up the data
 # read sample summary list
-# read sample summary list
-args <- commandArgs(trailingOnly = TRUE)
-df_samples <- readxl::read_excel(args[1])
+args <- "doc/190409_scRNAseq_info.xlsx"
+#args <- commandArgs(trailingOnly = TRUE)
+df_samples <- read_excel(args[1])
 print(df_samples)
 df_samples = as.data.frame(df_samples)
 colnames(df_samples) <- colnames(df_samples) %>% tolower
-sample_n = which(df_samples$tests %in% c("control",paste0("test",1:10)))
-#df_samples[sample_n,] %>% kable() %>% kable_styling()
-table(df_samples$tests);nrow(df_samples)
-list_samples <- lapply(colnames(df_samples), function(col) df_samples[,col])
-names(list_samples) = colnames(df_samples)
-keep = sapply(list_samples, function(n) length(n[!is.na(n)])>1)
-list_samples =list_samples[keep]
-samples <- list_samples$sample
+keep = df_samples$species %in% "Mouse"
+df_samples = df_samples[keep,]
 
-sce_list <- list()
 # select species
-if(unique(list_samples$species) == "Homo_sapiens") species <- "hg19"
-if(unique(list_samples$species) == "Mus_musculus") species <- "mm10"
-if(unique(list_samples$species) == "Danio_rerio") species <- "danRer10"
+if(unique(df_samples$species) %in% c("Homo_sapiens","Human")) species <- "hg19"
+if(unique(df_samples$species) %in% c("Mus_musculus","Mouse")) species <- "mm10"
+if(unique(df_samples$species) == "Danio_rerio") species <- "danRer10"
 if(species == "hg19") suppressPackageStartupMessages(library(EnsDb.Hsapiens.v86))
 if(species == "mm10") suppressPackageStartupMessages(library(EnsDb.Mmusculus.v79))
 
-for(i in 1:length(list_samples$sample)){
-        fname <- paste0("./data/",list_samples$sample.id[i],
+sce_list <- list()
+for(i in 1:length(sce_list)){
+        fname <- paste0("data/",df_samples$sample[i],
                         "/outs/filtered_gene_bc_matrices/",species)
         sce_list[[i]] <- read10xCounts.1(fname, col.names=TRUE,
-                                         add.colnames = list_samples$sample[i])
+                                         add.colnames = df_samples$sample[i])
 }
-names(sce_list) <- samples
+names(sce_list) <- df_samples$samples
 # 0.1.2 Annotating the rows
-for(i in 1:length(samples)){
+for(i in 1:length(sce_list)){
         rownames(sce_list[[i]]) <- uniquifyFeatureNames(rowData(sce_list[[i]])$ID,
                                                         rowData(sce_list[[i]])$Symbol)
         print(head(rownames(sce_list[[i]]),3))
@@ -57,7 +52,7 @@ for(i in 1:length(samples)){
 
 # We also identify the chromosomal location for each gene. 
 # The mitochondrial percentage is particularly useful for later quality control.
-for(i in 1:length(samples)){
+for(i in 1:length(sce_list)){
         if(species == "hg19") {
                 location <- mapIds(EnsDb.Hsapiens.v86, keys=rowData(sce_list[[i]])$ID, 
                            column="SEQNAME", keytype="GENEID")
@@ -91,7 +86,7 @@ for(i in 1:length(sce_list)){
 # using it as a proxy for cell damage. 
 # (Keep in mind that droplet-based datasets usually do not have spike-in RNA.)
 # Low-quality cells are defined as those with extreme values for these QC metrics and are removed.
-for(i in 1:length(samples)){
+for(i in 1:length(sce_list)){
         high.mito <- isOutlier(sce_list[[i]]$pct_counts_Mito, nmads=3, type="higher")
         low.lib <- isOutlier(sce_list[[i]]$log10_total_counts, type="lower", nmad=3)
         low.genes <- isOutlier(sce_list[[i]]$log10_total_features_by_counts, type="lower", nmad=3)
@@ -104,7 +99,7 @@ for(i in 1:length(samples)){
 
 ########################################################################
 #
-#  0.6 natural Log transform 
+#  0.6 Normalizing for cell-specific biases
 # 
 # ######################################################################
 # Use natural Log transform to fit Seurat

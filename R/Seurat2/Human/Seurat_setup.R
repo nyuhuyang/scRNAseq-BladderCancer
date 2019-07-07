@@ -213,13 +213,13 @@ save(BladderCancer, file = "./data/BladderCancer_H2_20181109.Rda")
 # Read in a list of cell cycle markers, from Tirosh et al, 2015
 cc.genes <- readLines(con = "R/seurat_resources/regev_lab_cell_cycle_genes.txt")
 # We can segregate this list into markers of G2/M phase and markers of S phase
-s.genes <- HumanGenes(BladderCancer,cc.genes[1:43])
-g2m.genes <- HumanGenes(BladderCancer,cc.genes[44:97])
+s.genes <- FilterGenes(BladderCancer,cc.genes[1:43])
+g2m.genes <- FilterGenes(BladderCancer,cc.genes[44:97])
 # Assign Cell-Cycle Scores
 BladderCancer <- CellCycleScoring(object = BladderCancer, s.genes = s.genes, g2m.genes = g2m.genes, 
                                   set.ident = TRUE)
 # Visualize the distribution of cell cycle markers across
-RidgePlot(object = BladderCancer, features.plot = HumanGenes(BladderCancer,c("CCND1","CDK4","CCND2","CDK6","CCND3","RB1")), 
+RidgePlot(object = BladderCancer, features.plot = FilterGenes(BladderCancer,c("CCND1","CDK4","CCND2","CDK6","CCND3","RB1")), 
           nCol = 2)
 # regressing out the difference between the G2M and S phase scores
 BladderCancer@meta.data$CC.Difference <- BladderCancer@meta.data$S.Score - BladderCancer@meta.data$G2M.Score

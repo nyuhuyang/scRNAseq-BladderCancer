@@ -45,14 +45,54 @@ read10xCounts.1 <- function (samples, col.names = TRUE, type = c("auto", "sparse
                              colData = cell_info)
 }
 
+#' Extract delimiter information from a string.
+#'
+#' Parses a string (usually a cell name) and extracts fields based on a delimiter
+#'
+#' @param string String to parse.
+#' @param field Integer(s) indicating which field(s) to extract. Can be a vector multiple numbers.
+#' @param delim Delimiter to use, set to underscore by default.
+#'
+#' @return A new string, that parses out the requested fields, and (if multiple), rejoins them with the same delimiter
+#'
+#' @export
+#'
+#' @examples
+#' ExtractField(string = 'Hello World', field = 1, delim = '_')
+#'
+ExtractField <- function(string, field = 1, delim = "_") {
+        fields <- as.numeric(x = unlist(x = strsplit(x = as.character(x = field), split = ",")))
+        if (length(x = fields) == 1) {
+                return(strsplit(x = string, split = delim)[[1]][field])
+        }
+        return(paste(strsplit(x = string, split = delim)[[1]][fields], collapse = delim))
+}
+
 .read_from_sparse <- function (path) 
 {
         barcode.loc <- file.path(path, "barcodes.tsv")
         gene.loc <- file.path(path, "genes.tsv")
+        features.loc <- file.path(path, "features.tsv.gz")
         matrix.loc <- file.path(path, "matrix.mtx")
-        list(mat = as(readMM(matrix.loc), "dgCMatrix"), cell.names = readLines(barcode.loc), 
-             gene.info = read.delim(gene.loc, header = FALSE, colClasses = "character", 
-                                    stringsAsFactors = FALSE, quote = "", comment.char = ""))
+        pre_ver_3 <- file.exists(gene.loc)
+        if (!pre_ver_3) {
+                addgz <- function(s) {
+                        return(paste0(s, ".gz"))
+                }
+                barcode.loc <- addgz(s = barcode.loc)
+                matrix.loc <- addgz(s = matrix.loc)
+        }
+        mat <- readMM(matrix.loc)
+        cell.names = readLines(barcode.loc)
+        if (all(grepl(pattern = "\\-1$", x = cell.names))) {
+                cell.names <- as.vector(x = as.character(x = sapply(X = cell.names, 
+                                                                    FUN = ExtractField, field = 1, delim = "-")))
+        }
+        gene.info <- read.delim(file = ifelse(test = pre_ver_3, 
+                                                  yes = gene.loc, no = features.loc), 
+                                header = FALSE, colClasses = "character",stringsAsFactors = FALSE,
+                                quote = "", comment.char = "")
+        list(mat=mat, cell.names=cell.names, gene.info=gene.info)
 }
 
 .read_from_hdf5 <- function (path, group = NULL) 
