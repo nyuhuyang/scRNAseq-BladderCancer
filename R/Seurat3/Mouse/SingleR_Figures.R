@@ -95,6 +95,7 @@ save(object,file="data/BladderCancer_mm10_6_20190706.Rda")
 ##############################
 object@meta.data$orig.ident %<>% factor(levels = c("4950N","8524N","8525N",
                                                    "4950P","8524P","8525P"))
+
 Idents(object) <- "singler1sub"
 TSNEPlot.1(object, cols = ExtractMetaColor(object),label = F,pt.size = 1,
          split.by = "orig.ident", group.by = "singler1sub",label.size = 4, repel = T, 
@@ -105,3 +106,26 @@ UMAPPlot.1(object, cols = ExtractMetaColor(object),label = F,pt.size = 1,
            split.by = "orig.ident", label.size = 4, repel = T, 
            no.legend = T, do.print = T,unique.name =T,
            ncol=3,title = "UMAP plots for all samples")
+##############################
+# subset tsne plot
+##############################
+df_samples <- readxl::read_excel("doc/190625_scRNAseq_info.xlsx")
+colnames(df_samples) <- colnames(df_samples) %>% tolower
+keep = df_samples$tests %in% paste0("test",c(2,4,5))
+df_samples = df_samples[keep,]
+(groups = unique(df_samples$groups))
+
+Idents(object) <- "groups"
+for (i in 1:length(groups)){
+        subset_object <- subset(object, idents = groups[i])
+        Idents(subset_object) = "singler1sub"
+        TSNEPlot.1(subset_object, cols = ExtractMetaColor(subset_object),label = F,pt.size = 1,
+                   group.by = "singler1sub",label.size = 4, repel = T, 
+                   no.legend = F, do.print = T,unique.name =T,
+                   ncol=3,title = paste("tSNE plots for",groups[i]))
+        
+        UMAPPlot.1(subset_object, cols = ExtractMetaColor(subset_object),label = F,pt.size = 1,
+                   label.size = 4, repel = T, 
+                   no.legend = F, do.print = T,unique.name =T,
+                   ncol=3,title = paste("UMAP plots for",groups[i]))
+}

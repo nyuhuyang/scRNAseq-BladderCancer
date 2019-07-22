@@ -7,26 +7,27 @@ Single-cell RNA-seq data is pre-processed with the scater R package. Data normal
 
 ## How to use this Script
 
-#### Software Setup
-R version 3.5.1<br />
-dplyr_0.7.6 <br />
-Seurat_2.3.4 <br />
-SingleR_0.2.2 <br />
+#### Key Software Setup
+R version 3.6.0 <br />
+Seurat_3.0.3 <br />
+MAST_1.10.0 <br />
+scran_1.12.1 <br />
+SingleR_1.0.1 <br />
 
 After pulling this repository, create folders **_data_** and **_output_** in the top working folder.
 Move Cell Ranger analysis results into **_data_** folder.
 Tree structure of directory:
 
 ### 1. scater.R
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/scater.R">scater.R</a> for human<br />
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/scater.R">scater.R</a> for mouse<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat2/Human/scater.R">scater.R</a> for human<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat3/Mouse/QC_scater.R">scater.R</a> for mouse<br />
 Initial quality control and remove low quality cells.
 
 After running these two scripts, `sce_list_Human_{date}.Rda` and `sce_list_Mouse_{date}.Rda` files will be generated inside
 
 ### 2. Seurat_setup.R
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/Seurat_setup.R">Seurat_setup.R</a> for human<br />
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/Seurat_setup.R">Seurat_setup.R</a> for mouse<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat2/Human/Seurat_setup.R">Seurat_setup.R</a> for human<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat3/Mouse/Seurat_setup.R">Seurat_setup.R</a> for mouse<br />
 
 Cells with less than 800 genes or 1500 UMIs or more than 15% of mitochondria genes were excluded from the analysis. Gene expression raw counts were normalized following a global-scaling normalization method with a scale factor of 10,000 and natural log transformation, using the Seurat NormalizeData function. The top 2000 highly variable genes were selected using the expression and dispersion (variance/mean) of genes, followed by canonical correlation analysis (CCA) to identify common sources of variation between the patient and normal datasets. The first 20 CCA results were chosen to generate dimensional t-Distributed Stochastic Neighbor Embedding (tSNE) plots, and cell clustering by a shared nearest neighbor (SNN) modularity optimization based clustering algorithm.
 
@@ -34,22 +35,22 @@ Need to modify the code according to the date. After running these two scripts, 
  Do not modify any files in **_data_** folder.
  
 ### 3. SingleR.R
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/SingleR.R">SingleR.R</a> for Human<br />
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/SingleR.R">SingleR.R</a> for Mouse<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat2/Human/SingleR.R">SingleR.R</a> for Human<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat3/Mouse/SingleR.R">SingleR.R</a> for Mouse<br />
 Cell types were identified by SingleR (Single-cell Recognition) package. SingleR is a novel computational method for unbiased cell type recognition of scRNA-seq. SingleR leverages reference transcriptomic datasets of pure cell types to infer the cell of origin of each of the single cells independently.
 
 After running this script, `singler_BladderCancer_H2_{date}.RData` and `singler_BladderCancer_M2_{date}.RData` file will be generated inside **_output_** folder.
 
 ### 4. Identify_Cell_Types_Manually.R
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/Identify_Cell_Types_Manually.R">Identify_Cell_Types_Manually.R</a> for Human<br />
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/Identify_Cell_Types_Manually.R">Identify_Cell_Types_Manually.R</a> for Mouse<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat2/Human/Identify_Cell_Types_Manually.R">Identify_Cell_Types_Manually.R</a> for Human<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat3/Mouse/Identify_Cell_Types_Manually.R">Identify_Cell_Types_Manually.R</a> for Mouse<br />
 All clusters are tested against marker genes and gene sets.
 
 Multiple plots and table will be generated, save them when necessary. 
 
 ### 5. Differential_analysis.R
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Human/Differential_analysis.R">Differential_analysis.R</a> for Human<br />
-<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Mouse/Differential_analysis.R">Differential_analysis.R</a> for Mouse<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat2/Human/Differential_analysis.R">Differential_analysis.R</a> for Human<br />
+<a href="https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/R/Seurat3/Mouse/Differential_analysis.R">Differential_analysis.R</a> for Mouse<br />
 Modified FindAllMarkers() `FindAllMarkers.UMI()` will generate similar dataframe plus two extra columns `UMI.1` and `UMI.2` to record nUMI. `UMI.1` is average nUMI of current cluster, `UMI.2` is average nUMI of all rest of clusters.<br />
 `FindAllMarkers(object, test.use = "MAST")` : MAST (Model-based Analysis of Single Cell Transcriptomics), a GLM-framework that treates cellular detection rate as a covariate (Finak et al, Genome Biology, 2015)<br />
 
