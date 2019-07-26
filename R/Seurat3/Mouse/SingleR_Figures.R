@@ -10,7 +10,7 @@ if(!dir.exists(path)) dir.create(path, recursive = T)
 #====== 3.1 Create Singler Object  ==========================================
 (load(file = "data/BladderCancer_mm10_6_20190706.Rda"))
 (load(file = "output/singler_F_BladderCancer_mm10_6_20190706.Rda"))
-# if singler didn't find all cell labels
+# if singler didn't find all cell labels`
 length(singler$singler[[1]]$SingleR.single$labels) == ncol(object@assays$RNA@data)
 if(length(singler$singler[[1]]$SingleR.single$labels) < ncol(object@assays$RNA@data)){
         all.cell = colnames(object);length(all.cell)
@@ -31,8 +31,8 @@ save(singler,file="output/singler_F_BladderCancer_mm10_6_20190706.Rda")
 singlerDF = data.frame("singler1sub" = singler$singler[[1]]$SingleR.single$labels,
                        "singler1main" = singler$singler[[1]]$SingleR.single.main$labels,
                        "orig.ident" = object@meta.data$orig.ident,
-                       "UMAP_1" = object@reductions$umap@cell.embeddings[,"UMAP_1"],
-                       "UMAP_2" = object@reductions$umap@cell.embeddings[,"UMAP_2"],
+                       #"UMAP_1" = object@reductions$umap@cell.embeddings[,"UMAP_1"],
+                       #"UMAP_2" = object@reductions$umap@cell.embeddings[,"UMAP_2"],
                        row.names = rownames(singler$singler[[1]]$SingleR.single$labels))
 
 table(rownames(singlerDF) %in% colnames(object))
@@ -57,14 +57,11 @@ dev.off()
 kable(table(singlerDF$singler1sub, singlerDF$orig.ident)) %>%
         kable_styling()
 singlerDF$orig.ident %>% table() %>% kable() %>% kable_styling()
-singlerDF$singler1sub %>% table() %>% kable() %>% kable_styling()
+singlerDF$singler1main %>% table() %>% kable() %>% kable_styling()
 
-singlerDF$singler1sub = gsub("Adipocytes|Ependymal|Microglia activated|NPCs|qNSCs",
-                             "other cell types",singlerDF$singler1sub)
-singlerDF$singler1sub = gsub("Fibroblasts|Fibroblasts activated|Fibroblasts senescent",
-                             "Stromal cells",singlerDF$singler1sub)
-singlerDF$singler1sub %<>% plyr::mapvalues(from = c("Hepatocytes","Macrophages activated"),
-                                           to = c("Epithelial cells","Macrophages"))
+singlerDF$singler1main = gsub("Hepatocytes","Epithelial cells",singlerDF$singler1main)
+
+
 ##############################
 # process color scheme
 ##############################
@@ -74,13 +71,15 @@ singler_colors1 = as.vector(singler_colors$singler.color1[!is.na(singler_colors$
 singler_colors1[duplicated(singler_colors1)]
 length(singler_colors1)
 apply(singlerDF[,c("singler1sub","singler1main")],2,function(x) length(unique(x)))
-singlerDF[,c("singler1sub")] %>% table() %>% kable() %>% kable_styling()
+singlerDF[,c("singler1main")] %>% table() %>% kable() %>% kable_styling()
 object <- AddMetaData(object = object,metadata = singlerDF)
-object <- AddMetaColor(object = object, label= "singler1sub", colors = singler_colors1)
-Idents(object) <- "singler1sub"
+object <- AddMetaColor(object = object, label= "singler1main", colors = singler_colors1)
+Idents(object) <- "singler1main"
 object %<>% sortIdent()
-TSNEPlot.1(object, cols = ExtractMetaColor(object),label = F,pt.size = 1,
-         label.size = 5, repel = T,do.print = T,title = "All cell types in tSNE plot")
+TSNEPlot.1(object, group.by="singler1main",cols = ExtractMetaColor(object),
+           label = T,pt.size = 1,no.legend = T,label.repel = T,
+         label.size = 4, repel = T,do.return= T,do.print = F,alpha = 0.9,
+         title = "All cell types in tSNE plot")
 
 jpeg(paste0(path,"tsne_umap_cell-type.jpeg"), units="in", width=10, height=7,res=600)
 UMAPPlot(object, group.by="singler1sub",pt.size = 1,label = F,
@@ -90,6 +89,8 @@ UMAPPlot(object, group.by="singler1sub",pt.size = 1,label = F,
 dev.off()
 
 save(object,file="data/BladderCancer_mm10_6_20190706.Rda")
+save(BladderCancer,file="data/BladderCancer_M2_20181026.Rda")
+
 ##############################
 # draw tsne plot
 ##############################
@@ -129,3 +130,9 @@ for (i in 1:length(groups)){
                    no.legend = F, do.print = T,unique.name =T,
                    ncol=3,title = paste("UMAP plots for",groups[i]))
 }
+
+cell <- colnames(BladderCancer)[BladderCancer$singler1main %in% "Stromal cells"]
+cell <- gsub("PN_","N_",cell)
+cell <- gsub("PP_","P_",cell)
+table(object@meta.data[cell,"singler1main"])
+

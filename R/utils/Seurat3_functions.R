@@ -21,6 +21,24 @@ library(ggplot2)
         }
 }
 
+# Set a default value if an object is NOT null
+#
+# @param lhs An object to set if it's NOT null
+# @param rhs The value to provide if x is NOT null
+#
+# @return lhs if lhs is null, else rhs
+#
+# @author Hadley Wickham
+# @references https://adv-r.hadley.nz/functions.html#missing-arguments
+#
+`%iff%` <- function(lhs, rhs) {
+    if (!is.null(x = lhs)) {
+        return(rhs)
+    } else {
+        return(lhs)
+    }
+}
+
 # Generic GetAssayData functions will generate Error in t.default(x = GetAssayData(object = object, slot = slot)[features,  : 
 # argument is not a matrix
 GetAssayData <- function(object, slot = "data", assay = NULL){
@@ -215,6 +233,17 @@ CheckSpecies <- function(subject){
 
 }
 
+
+# Make color scheme vector
+# names must be ordered vector or factor
+color_scheme <- function(color,names){
+    df_names <- as.data.frame(table(names))
+    df_names_Var <- df_names$Freq
+    color_code <- as.character(unlist(mapply(rep, color, df_names_Var)))
+    names(color_code) = names
+    return(color_code)
+}
+
 # Combine and print multiple PNG,
 #' @param ... PNG path
 #' @param ncol grid.arrange argments
@@ -252,62 +281,6 @@ CountsbyIdent <- function(object,subset.name,...){
     Cells_ident <- as.data.frame(table(Cells.use$ident))
     colnames(Cells_ident)[2] <- subset.name
     return(Cells_ident)
-}
-
-
-#' a supprting function for SingleFeaturePlot.1 and FeatureHeatmap.1
-#' Change ggplot color scale to increase contrast gradient
-#' #https://github.com/satijalab/seurat/issues/235
-#' @param p ggplot object
-#' @param alpha.use Define transparency of points
-#' @param gradient.use Change fill and colour gradient values
-#' @param scaled.expression.threshold Define lower limit of scaled gene expression level
-#' @export p ggplot object
-ChangeColorScale <- function(p1, alpha.use = 1,legend.title = "log(UMI)",
-                             gradient.use = c("yellow", "red"),
-                             scaled.expression.threshold = NULL) {
-    # Order data by scaled gene expresion level
-    # Compute maximum value in gene expression
-    if (length(p1$data$scaled.expression)>0){                # FeatureHeatmap.1
-        p1$data = p1$data[order(p1$data$scaled.expression),]
-        max.scaled.exp <- max(p1$data$scaled.expression)
-    } else if (length(p1$data$gene)>0){                   # SingleFeaturePlot.1 
-        p1$data = p1$data[order(p1$data$gene),] 
-        max.scaled.exp <- max(p1$data$gene) 
-    }
-    
-    # Define lower limit of scaled gene expression level
-    if (!is.null(scaled.expression.threshold)) {
-        scaled.expression.threshold <- scaled.expression.threshold
-    } else if (is.null(scaled.expression.threshold)) {
-        if (length(p1$data$scaled.expression)>0){
-            scaled.expression.threshold <- min(p1$data$scaled.expression)+0.0001
-        } else if (length(p1$data$gene)>0) {
-            scaled.expression.threshold <- min(p1$data$gene)+0.0001
-        }
-    }
-    
-    # Fill points using the scaled gene expression levels
-    p1$layers[[1]]$mapping$fill <- p1$layers[[1]]$mapping$colour
-    
-    # Define transparency of points
-    p1$layers[[1]]$mapping$alpha <- alpha.use
-    
-    # Change fill and colour gradient values
-    p1 = p1 + guides(colour = FALSE)
-    p1 = p1 + scale_colour_gradientn(colours = gradient.use, guide = F,
-                                   limits = c(scaled.expression.threshold,
-                                              max.scaled.exp),
-                                   na.value = "grey") +
-        scale_fill_gradientn(colours = gradient.use,
-                             name = legend.title,
-                             limits = c(scaled.expression.threshold,
-                                        max.scaled.exp),
-                             na.value = "grey") +
-        scale_alpha_continuous(range = alpha.use, guide = F)
-    
-    # Return plot
-    return(p1)
 }
 
 
@@ -378,6 +351,7 @@ DoHeatmap.1 <- function(object, marker_df, add.genes = NULL, no.legend =F,unique
                          assay = NULL, label = TRUE, cols=NULL, size = 5.5, hjust = 0, angle = 45, 
                          raster = TRUE, draw.lines = TRUE, lines.width = NULL, group.bar.height = 0.02, 
                          combine = TRUE,title = NULL,title.size = 14,do.print = FALSE,
+                        pal_gsea = TRUE,position = "right",
                         cex.row=12,legend.size = NULL,units="in", width=10, height=7,res=600,...){
     if(unique.name) {
         v <- paste(unique(object$orig.ident),collapse = "_")
@@ -402,8 +376,8 @@ DoHeatmap.1 <- function(object, marker_df, add.genes = NULL, no.legend =F,unique
                          hjust = hjust, angle = angle, raster = raster, draw.lines = draw.lines,
                          lines.width = lines.width, group.bar.height = group.bar.height, 
                          combine = combine)+
-        scale_y_discrete(position = "right")
-    heatmap = heatmap + scale_fill_gradientn(colors = ggsci::pal_gsea()(12))
+        scale_y_discrete(position = position)
+    if(pal_gsea) heatmap = heatmap + scale_fill_gradientn(colors = ggsci::pal_gsea()(12))
     if(!is.null(title)) {
         heatmap = heatmap+ ggtitle(title)+ 
             theme(plot.title = element_text(size=title.size, hjust = 0.5,face="plain"))
@@ -452,7 +426,7 @@ ExtractMetaColor <- function(object,color_index = NULL){
                 df_colors = df_colors[order(df_colors$index),]
             }
     
-    return(as.character(df_colors[,color_index]))
+    return(base::as.character(df_colors[,color_index]))
 }
 
 
@@ -503,15 +477,25 @@ eulerr <- function(df, shape =  "circle", key = NULL,cut_off = "avg_logFC",
 
 
 FgseaBarplot <- function(pathways=hallmark, stats=res, nperm=1000,cluster = 1,
-                         sample="",pathway.name = "Hallmark", hjust=0.5){
+                         sample="",pathway.name = "Hallmark", hjust=0.5, 
+                         width=10, height = 7, no.legend = FALSE,
+                         cut.off = c("pval","padj"),cut.off.value = 0.25,
+                         do.print = TRUE, do.return = FALSE){
     
-    res = stats[order(stats["p_val_adj"]),]
+    res = stats[order(stats["avg_logFC"]),]
     res1 = res[res$cluster == cluster,c("gene","avg_logFC")] %>% deframe
     
     fgseaRes <- fgsea(pathways=pathways, stats=res1, nperm=nperm)
     print(dim(fgseaRes))
-    topPathwaysUp <- fgseaRes[NES > 0][head(order(padj), n=25), pathway]
-    topPathwaysDown <- fgseaRes[NES < 0][head(order(padj), n=25), pathway]
+    
+    if(cut.off == "pval"){
+        (topPathwaysUp <- fgseaRes[NES > 0][head(order(pval), n=25), pathway])
+        (topPathwaysDown <- fgseaRes[NES < 0][head(order(pval), n=25), pathway])
+    }
+    if(cut.off == "padj"){
+        (topPathwaysUp <- fgseaRes[NES > 0][head(order(padj), n=25), pathway])
+        (topPathwaysDown <- fgseaRes[NES < 0][head(order(padj), n=25), pathway])
+    }
     topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
     out_write=fgseaRes[match(topPathways,pathway)]
     colnames(out_write)[1] <- 'Pathways'
@@ -528,21 +512,26 @@ FgseaBarplot <- function(pathways=hallmark, stats=res, nperm=1000,cluster = 1,
                  palette = "jco",            # jco journal color palett. see ?ggpar
                  sort.val = "asc",          # Sort the value in descending order
                  sort.by.groups = FALSE,     # Don't sort inside each group
-                 x.text.angle = 90,          # Rotate vertically x axis texts
                  ylab = 'Normalized Enrichment Score',
-                 legend.title = "padj < 0.25",
+                 legend.title = paste(cut.off,"<",cut.off.value),
                  rotate = TRUE,
                  title = paste(pathway.name,"pathways in",sample,cluster),
                  ggtheme = theme_minimal(base_size = 15))+
-        geom_col(aes(fill=padj<0.25))+
         guides(fill = guide_legend(reverse = TRUE))+
         theme(text = element_text(size=12),
-              plot.title = element_text(size = 12,hjust = hjust))
+              plot.title = element_text(size = 16,hjust = hjust))
+    if(cut.off == "pval") p = p + geom_col(aes(fill = pval < cut.off.value))
+    if(cut.off == "padj") p = p + geom_col(aes(fill = padj < cut.off.value))
+    if(no.legend) p = p + NoLegend()
     path <- paste0("output/",gsub("-","",Sys.Date()),"/")
-    if(!dir.exists(path)) dir.create(path, recursive = T)
-    jpeg(paste0(path,sample,"_",cluster,"-",pathway.name,".jpeg"), units="in", width=10, height=7,res=600)
-    print(p)
-    dev.off()
+    if(do.print){
+        if(!dir.exists(path)) dir.create(path, recursive = T)
+        jpeg(paste0(path,sample,"_",cluster,"-",pathway.name,".jpeg"), units="in", width=width, height=height,res=600)
+        print(p)
+        dev.off()
+    }
+    if(do.return) return(p)
+
 }
 
 #' FgseaDotPlot generate Dot plot using findmarker results based on FGSEA
@@ -846,9 +835,9 @@ FindMarkers.UMI <- function (object, ident.1 = NULL, ident.2 = NULL, group.by = 
                               pseudocount.use = pseudocount.use, ...)
     
     de.results$avg_logFC = log2(exp(1)) * de.results$avg_logFC
-    ave_UMI.1 <- Matrix::rowMeans(expm1(x = data.use[, ident.1]))
-    ave_UMI.2 <- Matrix::rowMeans(expm1(x = data.use[, ident.2]))
-    avg_UMI <-data.frame(ave_UMI.1, ave_UMI.2)
+    avg_UMI.1 <- Matrix::rowMeans(expm1(x = data.use[, ident.1]))
+    avg_UMI.2 <- Matrix::rowMeans(expm1(x = data.use[, ident.2]))
+    avg_UMI <-data.frame(avg_UMI.1, avg_UMI.2)
     de.results <- cbind(de.results,avg_UMI[match(rownames(de.results),rownames(avg_UMI)),])
     
     return(de.results)
@@ -871,15 +860,17 @@ FindPairMarkers <- function(object, ident.1, ident.2 = NULL, genes.use = NULL,re
                             min.cells.gene = 3,min.cells.group=3, pseudocount.use = 1, 
                             assay.type = "RNA",save.path = NULL,save.files = TRUE,...){
     #prepare save folder name
-    if(class(ident.1) == "numeric" & class(ident.2) == "numeric") {
-        ident1="";ident2=""
-    } else {
-        ident1 <- unique(gsub('\\_.*', '', ident.1))
-        ident2 <- unique(gsub('\\_.*', '', ident.2))
-    }
-    if(is.null(save.path)){
-        path <- paste0("output/",gsub("-","",Sys.Date()),"/")
-        save.path <- paste0(path,ident1,"_vs_",ident2,"/")
+    if(save.files){
+        if(class(ident.1) == "numeric" & class(ident.2) == "numeric") {
+            ident1="";ident2=""
+        } else {
+            ident1 <- unique(gsub('\\_.*', '', ident.1))
+            ident2 <- unique(gsub('\\_.*', '', ident.2))
+        }
+        if(is.null(save.path)){
+            path <- paste0("output/",gsub("-","",Sys.Date()),"/")
+            save.path <- paste0(path,ident1,"_vs_",ident2,"/")
+        }
     }
     gde <- list()
     for(i in 1:length(ident.1)) {
@@ -887,9 +878,6 @@ FindPairMarkers <- function(object, ident.1, ident.2 = NULL, genes.use = NULL,re
         print(ident.1vs2)
         ifelse(class(ident.1[i])=="list", ident1 <- ident.1[[i]], ident1 <- ident.1[i])
         ifelse(class(ident.2[i])=="list", ident2 <- ident.2[[i]], ident2 <- ident.2[i])
-        num1 <- as.numeric(unique(gsub('.*\\_', '', ident1)))
-        num2 <- as.numeric(unique(gsub('.*\\_', '', ident2)))
-        suppressWarnings(if(num1 == num2) num1 = "")
         gde[[i]] <- FindMarkers.UMI(object = object, 
                                     ident.1 = ident1,
                                     ident.2 = ident2, 
@@ -906,7 +894,7 @@ FindPairMarkers <- function(object, ident.1, ident.2 = NULL, genes.use = NULL,re
         gde[[i]]$gene <- rownames(x = gde[[i]])
         if(save.files){
             if(!dir.exists(save.path)) dir.create(save.path, recursive = T)
-            write.csv( gde[[i]], paste0(save.path,ident.1[i],"_vs_",ident.2[i],".csv"))
+            write.csv( gde[[i]], paste0(save.path,ident1,"_vs_",ident2,".csv"))
         }
     }
     return(bind_rows(gde))
@@ -1104,14 +1092,72 @@ MakeCorlorBar <- function(object, marker_df, Top_n = NULL, add.genes = NULL, col
 }
 
 
-# Make color scheme vector
-# names must be ordered vector or factor
-color_scheme <- function(color,names){
-        df_names <- as.data.frame(table(names))
-        df_names_Var <- df_names$Freq
-        color_code <- as.character(unlist(mapply(rep, color, df_names_Var)))
-        names(color_code) = names
-        return(color_code)
+# Support function for TSNEPlot.1, modified from Seurate:::LabelClusters function
+LabelRepel <- function(plot, id, clusters = NULL, labels = NULL, split.by = NULL, 
+                       repel = TRUE,color = NULL,alpha= NULL, ...){
+    xynames <- unlist(x = Seurat:::GetXYAesthetics(plot = plot), use.names = TRUE)
+    if (!id %in% colnames(x = plot$data)) {
+        stop("Cannot find variable ", id, " in plotting data")
+    }
+    if (!is.null(x = split.by) && !split.by %in% colnames(x = plot$data)) {
+        warning("Cannot find splitting variable ", id, " in plotting data")
+        split.by <- NULL
+    }
+    data <- plot$data[, c(xynames, id, split.by)]
+    g <- ggplot_build(plot)
+    data_color <- g$data[[1]]
+    data = cbind(data, color = data_color$colour[match(data$tSNE_1, data_color$x)])
+    possible.clusters <- as.character(x = na.omit(object = unique(x = data[,id])))
+    groups <- clusters %||% as.character(x = na.omit(object = unique(x = data[,id])))
+    if (any(!groups %in% possible.clusters)) {
+        stop("The following clusters were not found: ", 
+             paste(groups[!groups %in% 
+                              possible.clusters], collapse = ","))
+    }
+    labels.loc <- lapply(X = groups, FUN = function(group) {
+        data.use <- data[data[, id] == group, , drop = FALSE]
+        data.medians <- if (!is.null(x = split.by)) {
+            do.call(what = "rbind", 
+                    args = lapply(X = unique(x = data.use[, split.by]), 
+                                  FUN = function(split) {
+                                      medians <- apply(X = data.use[data.use[, split.by] == 
+                                                                        split, xynames, drop = FALSE], 
+                                                       MARGIN = 2, 
+                                                       FUN = median, na.rm = TRUE)
+                                      medians <- as.data.frame(x = t(x = medians))
+                                      medians[, split.by] <- split
+                                      return(medians)
+                                      }))
+        } else {
+            as.data.frame(x = t(x = apply(X = data.use[, xynames, 
+                                                       drop = FALSE], MARGIN = 2, 
+                                          FUN = median, na.rm = TRUE)))
+        }
+        data.medians[, id] <- group
+        return(data.medians)
+    })
+    labels.loc <- do.call(what = "rbind", args = labels.loc)
+    labels <- labels %||% groups
+    if (length(x = unique(x = labels.loc[, id])) != length(x = labels)) {
+        stop("Length of labels (", length(x = labels), ") must be equal to the number of clusters being labeled (", 
+             nrow(x = labels.loc), ").")
+    }
+    names(x = labels) <- groups
+    for (group in groups) {
+        labels.loc[labels.loc[, id] == group, id] <- labels[group]
+    }
+    labels.loc = labels.loc[order(labels.loc[,id]),]
+    labels.loc = cbind.data.frame(labels.loc, 
+                                 color = data$color[match(labels.loc[,id], data[,id])])
+    geom.use <- ifelse(test = repel, yes = ggrepel::geom_label_repel, 
+                       no = geom_label)
+    plot = plot + geom.use(data = labels.loc, mapping = aes_string(x = xynames["x"], 
+                                                                   y = xynames["y"], 
+                                                                   label = id),
+                           colour = labels.loc$color,
+                           alpha = alpha)
+    return(plot)
+    
 }
 
 
@@ -1333,213 +1379,6 @@ ReportGSEA <- function(file, pos=T,ncol = 3){
         
 }
 
-# Seurat 3
-SingleDimPlot <- function (data, dims, col.by = NULL, cols = NULL, pt.size = NULL, 
-                           shape.by = NULL, order = NULL, label = FALSE, repel = FALSE, 
-                           label.size = 4, cells.highlight = NULL, cols.highlight = "red", 
-                           sizes.highlight = 1, na.value = "grey50") 
-{
-    pt.size <- pt.size %||% Seurat:::AutoPointSize(data = data)
-    if (length(x = dims) != 2) {
-        stop("'dims' must be a two-length vector")
-    }
-    if (!is.data.frame(x = data)) {
-        data <- as.data.frame(x = data)
-    }
-    if (is.character(x = dims) && !all(dims %in% colnames(x = data))) {
-        stop("Cannot find dimensions to plot in data")
-    }
-    else if (is.numeric(x = dims)) {
-        dims <- colnames(x = data)[dims]
-    }
-    if (!is.null(x = cells.highlight)) {
-        highlight.info <- SetHighlight(cells.highlight = cells.highlight, 
-                                       cells.all = rownames(x = data), sizes.highlight = sizes.highlight %||% 
-                                           pt.size, cols.highlight = cols.highlight, col.base = cols[1] %||% 
-                                           "black", pt.size = pt.size)
-        order <- highlight.info$plot.order
-        data$highlight <- highlight.info$highlight
-        col.by <- "highlight"
-        pt.size <- highlight.info$size
-        cols <- highlight.info$color
-    }
-    if (!is.null(x = order) && !is.null(x = col.by)) {
-        if (typeof(x = order) == "logical") {
-            if (order) {
-                data <- data[order(data[, col.by]), ]
-            }
-        }
-        else {
-            order <- rev(x = c(order, setdiff(x = unique(x = data[, 
-                                                                  col.by]), y = order)))
-            data[, col.by] <- factor(x = data[, col.by], levels = order)
-            new.order <- order(x = data[, col.by])
-            data <- data[new.order, ]
-            if (length(x = pt.size) == length(x = new.order)) {
-                pt.size <- pt.size[new.order]
-            }
-        }
-    }
-    if (!is.null(x = col.by) && !col.by %in% colnames(x = data)) {
-        warning("Cannot find ", col.by, " in plotting data, not coloring plot")
-        col.by <- NULL
-    }
-    else {
-        col.index <- match(x = col.by, table = colnames(x = data))
-        if (grepl(pattern = "^\\d", x = col.by)) {
-            col.by <- paste0("x", col.by)
-        }
-        else if (grepl(pattern = "-", x = col.by)) {
-            col.by <- gsub(pattern = "-", replacement = ".", 
-                           x = col.by)
-        }
-        colnames(x = data)[col.index] <- col.by
-    }
-    if (!is.null(x = shape.by) && !shape.by %in% colnames(x = data)) {
-        warning("Cannot find ", shape.by, " in plotting data, not shaping plot")
-    }
-    plot <- ggplot(data = data) + geom_point(mapping = aes_string(x = dims[1], 
-                                                                  y = dims[2], color = paste0("`", col.by, "`"), shape = shape.by), 
-                                             size = pt.size) + guides(color = guide_legend(override.aes = list(size = 3))) + 
-        labs(color = NULL)
-    if (label && !is.null(x = col.by)) {
-        plot <- LabelClusters(plot = plot, id = col.by, repel = repel, 
-                              size = label.size)
-    }
-    if (!is.null(x = cols)) {
-        plot <- plot + if (length(x = cols) == 1) {
-            scale_color_brewer(palette = cols, na.value = na.value)
-        }
-        else {
-            scale_color_manual(values = cols, na.value = na.value)
-        }
-    }
-    plot <- plot + cowplot::theme_cowplot()
-    return(plot)
-}
-
-
-# FeaturePlot doesn't return ggplot
-# SingleFeaturePlot doesn't take seurat object as input
-# modified SingleFeaturePlot, take seurat object and return ggplot
-SingleFeaturePlot.1 <- function (object = object, feature = feature, pt.size = 1.0,
-                                 dim.1 = 1, dim.2 = 2,pch.use = 16, cols.use  = c("lightgrey","blue"),
-                                 gradient.use = c("orangered", "red4"),threshold= NA,text.size=15,
-                                 cells.use = NULL,dim.codes, min.cutoff = 0, max.cutoff = Inf,
-                                 use.imputed = FALSE, reduction.use = "tsne",no.axes = FALSE, no.legend = T, 
-                                 dark.theme = FALSE,title=feature, do.return = TRUE,do.print=FALSE,x.lim = NULL,
-                                 y.lim = NULL,legend.title = "log(UMI)", ...) 
-{
-    dim.code <- GetDimReduction(object = object, reduction.type = reduction.use, 
-                                slot = "key")
-    dim.codes <- paste0(dim.code, c(dim.1, dim.2))
-    data.plot <- as.data.frame(GetCellEmbeddings(object = object,
-                                                 reduction.type = reduction.use, 
-                                                 dims.use = c(dim.1,dim.2), 
-                                                 cells.use = cells.use))
-    x1 <- paste0(dim.code, dim.1)
-    x2 <- paste0(dim.code, dim.2)
-    data.plot$x <- data.plot[, grep(x1,colnames(data.plot),value = T)]
-    data.plot$y <- data.plot[, grep(x2,colnames(data.plot),value = T)]
-    data.plot$pt.size <- pt.size
-    names(x = data.plot) <- c("x", "y")
-    data.use <- t(x = FetchData(object = object, vars.all = feature, 
-                                cells.use = cells.use, use.imputed = use.imputed,...))
-    data.gene <- na.omit(object = data.frame(data.use[1,])) # Error in data.use[feature, ] : subscript out of bounds
-    min.cutoff <- Seurat:::SetQuantile(cutoff = min.cutoff, data = data.gene)
-    max.cutoff <- Seurat:::SetQuantile(cutoff = max.cutoff, data = data.gene)
-    data.gene <- sapply(X = data.gene, FUN = function(x) {
-        return(ifelse(test = x < min.cutoff, yes = min.cutoff, 
-                      no = x))
-    })
-    data.gene <- sapply(X = data.gene, FUN = function(x) {
-        return(ifelse(test = x > max.cutoff, yes = max.cutoff, 
-                      no = x))
-    })
-    data.plot$gene <- data.gene
-    
-    if (length(x = cols.use) == 1) {
-        brewer.gran <- brewer.pal.info[cols.use, ]$maxcolors
-    }
-    else {
-        brewer.gran <- length(x = cols.use)
-    }
-    if (all(data.gene == 0)) {
-        data.cut <- 0
-    }
-    else {
-        data.cut <- as.numeric(x = as.factor(x = cut(x = as.numeric(x = data.gene), 
-                                                     breaks = brewer.gran)))
-    }
-    data.plot$col <- as.factor(x = data.cut)
-    p <- ggplot(data = data.plot, mapping = aes(x = x, y = y))
-    if (brewer.gran != 2) {
-        if (length(x = cols.use) == 1) {
-            p <- p + geom_point(mapping = aes(color = col), 
-                                size = pt.size, shape = pch.use)
-        }
-        else {
-            p <- p + geom_point(mapping = aes(color = col), 
-                                size = pt.size, shape = pch.use)
-        }
-    }
-    else {
-        if (all(data.plot$gene == data.plot$gene[1])) {
-            warning(paste0("All cells have the same value of ", 
-                           feature, "."))
-            p <- p + geom_point(color = cols.use[1], size = pt.size, 
-                                shape = pch.use)
-        }
-        else {
-            p <- p + geom_point(mapping = aes(color = gene), 
-                                size = pt.size, shape = pch.use)
-        }
-    }
-    if (no.axes) {
-        p <- p + labs(title = feature, x = "", y = "") + theme(axis.line = element_blank(), 
-                                                               axis.text.x = element_blank(), 
-                                                               axis.text.y = element_blank(), 
-                                                               axis.ticks = element_blank(), 
-                                                               axis.title.x = element_blank(), 
-                                                               axis.title.y = element_blank())
-    }
-    else {
-        p <- p + labs(x = dim.codes[1], y = dim.codes[2])
-    }
-    if (no.legend) {
-        p <- p + theme(legend.position = "none")
-    }
-    if (dark.theme) {
-        p <- p + DarkTheme()
-    }
-    if(is.null(threshold)) {
-        x = object@data[feature,]
-        threshold <- histPeak(x)
-    }
-    p1 <- ChangeColorScale(p, alpha.use = 1,legend.title=legend.title,
-                           scaled.expression.threshold = threshold,
-                           gradient.use = gradient.use)
-    if(!is.null(x.lim)) p1 = p1 + xlim(x.lim)
-    if(!is.null(y.lim)) p1 = p1 + ylim(y.lim)
-    p1 <- p1 +ggtitle(paste0(title))+
-        theme(text = element_text(size=text.size),						
-              axis.text.x = element_text(size=text.size*0.8),
-              axis.text.y = element_text(size=text.size*0.8),
-              plot.title = element_text(hjust = 0.5,size=text.size*1.5),
-              legend.key.size = unit(text.size/4, "mm"),
-              legend.key.width = unit(text.size/4, "mm"),
-              legend.key.height = unit(text.size/4, "mm"))
-    if(do.print) {
-      path <- paste0("output/",gsub("-","",Sys.Date()),"/")
-      if(!dir.exists(path)) dir.create(path, recursive = T)
-      jpeg(paste0(path,"SingleFeaturePlot_",feature,".jpeg"), units="in", width=10, height=7,res=600)
-      print(p1)
-      dev.off()
-    } else if(do.return) {
-      return(p1)
-    }
-}
-
 
 #' re-order seurat idents factors
 sortIdent <- function(object,numeric=F){
@@ -1555,33 +1394,36 @@ sortIdent <- function(object,numeric=F){
 }
 
 
-#' Add several args from Seurat 2
+#' Modified TSNEPlot
+#' @param label.repel 
 #' @param no.legend remove legend
 #' @param title add ggplot title
 #' @param do.print save jpeg file
 #' @param unique.name save jpeg file with unique name
 #' @param do.return return plot
-TSNEPlot.1 <- function(
-    object,dims = c(1, 2),cells = NULL,cols = NULL,pt.size = NULL,
-    reduction = NULL,group.by = NULL,split.by = NULL,shape.by = NULL,
-    order = NULL,label = FALSE,label.size = 4,repel = FALSE,
-    cells.highlight = NULL,cols.highlight = 'red',sizes.highlight = 1,
-    na.value = 'grey50',combine = TRUE,ncol = NULL,title = NULL,
-    no.legend = F,do.print = F,do.return = T,unique.name=F,...) {
+TSNEPlot.1 <- function(object,dims = c(1, 2),cells = NULL,cols = NULL,pt.size = NULL,
+                       reduction = "tsne",group.by = NULL,split.by = NULL,shape.by = NULL,
+                       order = NULL,label = FALSE,label.repel= TRUE, label.size = 4,
+                       repel = TRUE,alpha = 0.85, 
+                       cells.highlight = NULL,cols.highlight = 'red',sizes.highlight = 1,
+                       na.value = 'grey50',combine = TRUE,ncol = NULL,title = NULL,
+                       no.legend = F,do.print = F,do.return = T,unique.name=F,
+                       width=10, height=7,border = FALSE, ...) {
     if(unique.name) {
-        v <- unique(object$orig.ident)
-        v <- paste(v[1:min(5,length(v))],collapse = "_")
-    } else v <- deparse(substitute(object))
-    v = paste0(v,"_",FindIdentLabel(object))
+        VarName <- unique(object$orig.ident)
+        VarName <- paste(VarName[1:min(5,length(VarName))],collapse = "_")
+    } else VarName <- deparse(substitute(object))
+    VarName = paste0(VarName,"_",group.by %||% FindIdentLabel(object))
     if (length(x = dims) != 2) {
         stop("'dims' must be a two-length vector")
     }
+    reduction <- reduction %||% Seurat:::DefaultDimReduc(object = object)
     cells <- cells %||% colnames(x = object)
-    data <- object@reductions$tsne@cell.embeddings[cells, dims]
+    data <- Embeddings(object = object[[reduction]])[cells,dims]
     data <- as.data.frame(x = data)
-    dims <- paste0("tSNE_", dims)
-    object[['ident']] <- Idents(object = object)
-    group.by <- group.by %||% 'ident'
+    dims <- paste0(Key(object = object[[reduction]]), dims)
+    object[["ident"]] <- Idents(object = object)
+    group.by <- group.by %||% "ident"
     data[, group.by] <- object[[group.by]][cells, , drop = FALSE]
     for (group in group.by) {
         if (!is.factor(x = data[, group])) {
@@ -1594,56 +1436,39 @@ TSNEPlot.1 <- function(
     if (!is.null(x = split.by)) {
         data[, split.by] <- object[[split.by, drop = TRUE]]
     }
-    plots <- lapply(
-        X = group.by,
-        FUN = function(x) {
-            plot <- SingleDimPlot(
-                data = data[, c(dims, x, split.by, shape.by)],
-                dims = dims,
-                col.by = x,
-                cols = cols,
-                pt.size = pt.size,
-                shape.by = shape.by,
-                order = order,
-                label = FALSE,
-                cells.highlight = cells.highlight,
-                cols.highlight = cols.highlight,
-                sizes.highlight = sizes.highlight,
-                na.value = na.value
-            )
-            if (label) {
-                plot <- LabelClusters(
-                    plot = plot,
-                    id = x,
-                    repel = repel,
-                    size = label.size,
-                    split.by = split.by
-                )
-            }
-            if (!is.null(x = split.by)) {
-                plot <- plot + Seurat:::FacetTheme() +
-                    facet_wrap(
-                        facets = vars(!!sym(x = split.by)),
-                        ncol = if (length(x = group.by) > 1) {
-                            length(x = unique(x = data[, split.by]))
-                        } else {
-                            NULL
-                        }
-                    )
-            }
-            return(plot)
+    plots <- lapply(X = group.by, FUN = function(x) {
+        plot <- Seurat:::SingleDimPlot(data = data[, c(dims, x, split.by, shape.by)], 
+                                       dims = dims, col.by = x, cols = cols,
+        pt.size = pt.size, shape.by = shape.by, order = order,
+        label = FALSE, cells.highlight = cells.highlight,
+        cols.highlight = cols.highlight, sizes.highlight = sizes.highlight,
+        na.value = na.value, ...)
+        if (label & label.repel == F ) {
+            plot <- LabelClusters(plot = plot, id = x, repel = repel,
+            size = label.size, split.by = split.by)
         }
-    )
+        if (label & label.repel) {
+            plot <- LabelRepel(plot = plot, id = x, repel = repel,
+                               size = label.size, split.by = split.by, color= cols,
+                               alpha = alpha)
+        }
+        if (!is.null(x = split.by)) {
+            plot <- plot + Seurat:::FacetTheme() + facet_wrap(facets = vars(!!sym(x = split.by)),
+            ncol = if (length(x = group.by) > 1 || is.null(x = ncol)) {
+                length(x = unique(x = data[, split.by]))
+            } else ncol )
+            if(border == TRUE) plot = plot + theme(panel.border = element_rect(colour = "black"))
+        }
+        return(plot)
+    })
     if (combine) {
-        plots <- CombinePlots(
-            plots = plots,align= align,
-            ncol = if (!is.null(x = split.by) && length(x = group.by) > 1) {
-                1
-            } else {
-                ncol
-            },
-            ...
-        )
+        plots <- CombinePlots(plots = plots, ncol = if (!is.null(x = split.by) &&
+        length(x = group.by) > 1) {
+            1
+        }
+        else {
+            ncol
+        }, ...)
     }
     if(!is.null(title)){
         plots = plots + ggtitle(title)+
@@ -1656,8 +1481,8 @@ TSNEPlot.1 <- function(
     if(do.print) {
         path <- paste0("output/",gsub("-","",Sys.Date()),"/")
         if(!dir.exists(path)) dir.create(path, recursive = T)
-        jpeg(paste0(path,"TSNEPlot_",v,L,".jpeg"), 
-             units="in", width=10, height=7,res=600)
+        jpeg(paste0(path,"TSNEPlot_",VarName,L,".jpeg"), 
+             units="in", width=width, height=height,res=600)
         print(plots)
         dev.off()
     }
@@ -1665,7 +1490,6 @@ TSNEPlot.1 <- function(
 }
 
 
-#' Add several args from Seurat 2
 #' @param no.legend remove legend
 #' @param title add ggplot title
 #' @param do.print save jpeg file
@@ -1679,10 +1503,10 @@ UMAPPlot.1 <- function(
     na.value = 'grey50',combine = TRUE,ncol = NULL,title = NULL,
     no.legend = F,do.print = F,do.return = T,unique.name=F,...) {
     if(unique.name) {
-        v <- unique(object$orig.ident)
-        v <- paste(v[1:min(5,length(v))],collapse = "_")
-    } else v <- deparse(substitute(object))
-    v = paste0(v,"_",FindIdentLabel(object))
+        VarName <- unique(object$orig.ident)
+        VarName <- paste(VarName[1:min(5,length(VarName))],collapse = "_")
+    } else VarName <- deparse(substitute(object))
+    VarName = paste0(VarName,"_",group.by %||% FindIdentLabel(object))
     if (length(x = dims) != 2) {
         stop("'dims' must be a two-length vector")
     }
@@ -1766,7 +1590,7 @@ UMAPPlot.1 <- function(
     if(do.print) {
         path <- paste0("output/",gsub("-","",Sys.Date()),"/")
         if(!dir.exists(path)) dir.create(path, recursive = T)
-        jpeg(paste0(path,"UMAPPlot_",v,L,".jpeg"), 
+        jpeg(paste0(path,"UMAPPlot_",VarName,L,".jpeg"), 
              units="in", width=10, height=7,res=600)
         print(plots)
         dev.off()
