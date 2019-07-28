@@ -9,8 +9,6 @@ library(dplyr)
 library(cowplot)
 library(kableExtra)
 library(magrittr)
-library(harmony)
-library(scran)
 source("R/utils/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
@@ -54,16 +52,16 @@ save(object, file = paste0("data/BladderCancer_mm10_",length(df_samples$sample),
 object <- PercentageFeatureSet(object = object, pattern = "^mt-", col.name = "percent.mt")
 Idents(object) = "orig.ident"
 Idents(object) %<>% factor(levels = samples)
-(load(file = paste0(path, "g1_6_20190705.Rda"))
+(load(file = "output/20190706/Quality control/g1_6_20190705.Rda"))
 
-object %<>% subset(subset = nFeature_RNA > 800 & nCount_RNA > 1000 & percent.mt < 15)
+object %<>% subset(subset = nFeature_RNA > 400 & nCount_RNA > 1000 & percent.mt < 15)
 # FilterCellsgenerate Vlnplot before and after filteration
 g2 <- lapply(c("nFeature_RNA", "nCount_RNA", "percent.mt"), function(features){
     VlnPlot(object = object, features = features, ncol = 3, pt.size = 0.01)+
         theme(axis.text.x = element_text(size=15),legend.position="none")
 })
 
-save(g2,file= paste0(path,"g2_6_20190705.Rda"))
+save(g2,file= paste0(path,"g2_6_20190726.Rda"))
 jpeg(paste0(path,"S1_nGene.jpeg"), units="in", width=10, height=7,res=600)
 print(plot_grid(g1[[1]]+ggtitle("nFeature_RNA before filteration")+
                     scale_y_log10(limits = c(100,10000)),
@@ -84,7 +82,7 @@ print(plot_grid(g1[[3]]+ggtitle("mito % before filteration")+
 dev.off()
 
 ######################################
-(load("data/BladderCancer_mm10_6_20190706.Rda"))
+(load("data/BladderCancer_mm10_6_20190726.Rda"))
 # After removing unwanted cells from the dataset, the next step is to normalize the data.
 #BladderCancer <- NormalizeData(object = object, normalization.method = "LogNormalize", 
 #                      scale.factor = 10000)
@@ -115,52 +113,45 @@ object %<>% FindNeighbors(reduction = "pca",dims = 1:npcs)
 object %<>% FindClusters(reduction = "pca",resolution = 0.6,
                        dims.use = 1:npcs,print.output = FALSE)
 object %<>% RunTSNE(reduction = "pca", dims = 1:npcs)
-object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
+#object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
 
 p0 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
                  label.size = 4, repel = T,title = "Original tsne plot")
-p1 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("Original umap plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
+#p1 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
+#               label.size = 4, repel = T)+ggtitle("Original umap plot")+
+#    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
 
-#======1.4 Performing CCA integration =========================
+#======1.4 Performing SCTransform and integration =========================
 set.seed(100)
-Idents(object) = "orig.ident"
-object_list <- lapply(df_samples$sample,function(x) subset(object,idents=x))
-anchors <- FindIntegrationAnchors(object.list = object_list, dims = 1:npcs)
-object <- IntegrateData(anchorset = anchors, dims = 1:npcs)
-remove(anchors,object_list);GC()
-DefaultAssay(object) <- "integrated"
-object %<>% ScaleData(verbose = FALSE)
-object %<>% RunPCA(npcs = npcs, features = VariableFeatures(object),verbose = FALSE)
+object_list <- SplitObject(object, split.by = "groups")
+object_list %<>% lapply(SCTransform)
+object.features <- SelectIntegrationFeatures(object_list, nfeatures = 3000)
+options(future.globals.maxSize= 8388608000)
+object_list <- PrepSCTIntegration(object.list = object_list, anchor.features = object.features, 
+                                    verbose = FALSE)
+anchors <- FindIntegrationAnchors(object_list, normalization.method = "SCT", 
+                                           anchor.features = object.features)
+object <- IntegrateData(anchorset = anchors, normalization.method = "SCT")
+
+remove(object.anchors,object_list);GC()
+object %<>% RunPCA(npcs = 120, verbose = FALSE)
+object <- JackStraw(object, num.replicate = 20,dims = 120)
+object <- ScoreJackStraw(object, dims = 1:120)
+jpeg(paste0(path,"JackStrawPlot.jpeg"), units="in", width=10, height=7,res=600)
+JackStrawPlot(object, dims = 100:105)+NoLegend()
+dev.off()
+npcs = 105
 object %<>% FindNeighbors(reduction = "pca",dims = 1:npcs)
 object %<>% FindClusters(reduction = "pca",resolution = 0.6,
                          dims.use = 1:npcs,print.output = FALSE)
 object %<>% RunTSNE(reduction = "pca", dims = 1:npcs)
-object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
+#object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
 
 p2 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
                  label.size = 4, repel = T,title = "CCA tsne plot")
-p3 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("CCA umap plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
-#======1.6 Apply sctransform normalization =========================
-DefaultAssay(object) <- "RNA"
-object <- SCTransform(object, verbose = T)
-(load(file="data/BladderCancer_mm10_6_20190706.Rda"))
-DefaultAssay(object) <- "SCT"
-object %<>% RunPCA(npcs = npcs, features = VariableFeatures(object),verbose = FALSE)
-object %<>% FindNeighbors(reduction = "pca",dims = 1:npcs)
-object %<>% FindClusters(reduction = "pca",resolution = 0.6,
-                         dims.use = 1:npcs,print.output = FALSE)
-object %<>% RunTSNE(reduction = "pca", dims = 1:npcs)
-object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
-
-p4 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
-                 label.size = 4, repel = T,title = "SCT tsne plot")
-p5 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("SCT umap plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
+#p3 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
+#               label.size = 4, repel = T)+ggtitle("CCA umap plot")+
+#    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
 #======1.7 Performing MNN-based correction =========================
 #https://bioconductor.org/packages/3.8/workflows/vignettes/simpleSingleCell/inst/doc/work-5-mnn.html#4_performing_mnn-based_correction
 set.seed(100)
@@ -212,15 +203,21 @@ p7 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
                label.size = 4, repel = T)+ggtitle("harmony umap plot")+
     theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
 
-Idents(object) = "integrated_snn_res.0.6"
-TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = F,
-           label.size = 4, repel = T,title = "All cluster in tSNE plot",do.print = T)
 
-jpeg(paste0(path,"tsne_umap.jpeg"), units="in", width=10, height=7,res=600)
-UMAPPlot(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("All cluster in UMAP plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
+#=======1.9 summary =======================================
+jpeg(paste0(path,"S1_TSNEPlot.jpeg"), units="in", width=10, height=7,res=600)
+plot_grid(p0+ggtitle("Clustering without integration")+
+              theme(plot.title = element_text(hjust = 0.5,size = 18)),
+          p2+ggtitle("Clustering with integration")+
+              theme(plot.title = element_text(hjust = 0.5,size = 18)))
 dev.off()
 
+TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+           label.repel = T, alpha = 1,
+           label.size = 4, repel = T,title = "All cluster in tSNE plot",do.print = T)
+
 object@assays$integrated@scale.data = matrix(0,0,0)
-save(object, file = paste0("data/BladderCancer_mm10_",length(df_samples$sample),"_",gsub("-","",Sys.Date()),".Rda"))
+save(object, file = "data/BladderCancer_mm10_6_20190726.Rda")
+
+object_data = object@assays$SCT@data
+save(object_data, file = "data/object_data_mm10_6_20190726.Rda")
