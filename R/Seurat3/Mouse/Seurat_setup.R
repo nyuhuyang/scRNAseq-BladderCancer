@@ -9,7 +9,7 @@ library(dplyr)
 library(cowplot)
 library(kableExtra)
 library(magrittr)
-source("R/utils/Seurat3_functions.R")
+source("../R/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 ########################################################################
@@ -144,65 +144,12 @@ npcs = 105
 object %<>% FindNeighbors(reduction = "pca",dims = 1:npcs)
 object %<>% FindClusters(reduction = "pca",resolution = 0.6,
                          dims.use = 1:npcs,print.output = FALSE)
+object %<>% FindClusters(reduction = "pca",resolution = 1.2,
+                         dims.use = 1:npcs,print.output = FALSE)
 object %<>% RunTSNE(reduction = "pca", dims = 1:npcs)
-#object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
 
 p2 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
                  label.size = 4, repel = T,title = "CCA tsne plot")
-#p3 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-#               label.size = 4, repel = T)+ggtitle("CCA umap plot")+
-#    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
-#======1.7 Performing MNN-based correction =========================
-#https://bioconductor.org/packages/3.8/workflows/vignettes/simpleSingleCell/inst/doc/work-5-mnn.html#4_performing_mnn-based_correction
-set.seed(100)
-original <- lapply(samples, function(x) object@assays$RNA@scale.data[VariableFeatures(object), 
-                                                 (object$orig.ident %in% x)])
-system.time(mnn.out <- do.call(fastMNN, c(original, list(k=20, d=npcs, auto.order=T,
-                                             approximate=TRUE))))
-dim(mnn.out$corrected)
-rownames(mnn.out$rotation) = VariableFeatures(object)
-colnames(mnn.out$rotation) = paste0("MNN_", 1:npcs)
-rownames(mnn.out$corrected) = colnames(object)
-colnames(mnn.out$corrected) = paste0("MNN_",1:ncol(mnn.out$corrected))
-#Storing a new MNN
-object[['mnn']] <- CreateDimReducObject(embeddings = mnn.out$corrected,
-                                       assay = "RNA",key = "MNN_")
-remove(original);GC()
-Idents(object) <- "orig.ident"
-
-DimPlot(object = object, reduction = "mnn", pt.size = 0.5)
-
-object <- FindNeighbors(object, reduction = "mnn",dims = 1:npcs)
-object <- FindClusters(object, reduction = "mnn",resolution = 0.6,
-                       dims.use = 1:npcs,print.output = FALSE) %>%
-    RunTSNE(reduction = "mnn", dims = 1:npcs)
-
-p6 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
-                 label.size = 4, repel = T,title = "MNN tsne plot")
-p7 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("MNN umap plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
-
-
-#======1.8 RunHarmony=======================
-jpeg(paste0(path,"RunHarmony.jpeg"), units="in", width=10, height=7,res=600)
-system.time(object %<>% RunHarmony(group.by.vars= "orig.ident", dims.use = 1:npcs,
-                                   theta = NULL, plot_convergence = TRUE,epsilon.harmony = -Inf,
-                                   nclust = 100, max.iter.cluster = 100))
-dev.off()
-
-object %<>% FindNeighbors(reduction = "harmony",dims = 1:npcs)
-object %<>% FindClusters(reduction = "harmony",resolution = 0.6,
-                                  dims.use = 1:npcs,print.output = FALSE)
-object %<>% RunTSNE(reduction = "harmony", dims = 1:npcs)
-object %<>% RunUMAP(reduction = "harmony", dims = 1:npcs)
-
-p6 <- TSNEPlot.1(object, group.by="orig.ident",pt.size = 1,label = F,
-                 label.size = 4, repel = T,title = "harmony tsne plot")
-p7 <- UMAPPlot(object, group.by="orig.ident",pt.size = 1,label = F,
-               label.size = 4, repel = T)+ggtitle("harmony umap plot")+
-    theme(plot.title = element_text(hjust = 0.5,size=15,face = "plain"))
-
 
 #=======1.9 summary =======================================
 jpeg(paste0(path,"S1_TSNEPlot.jpeg"), units="in", width=10, height=7,res=600)
@@ -212,9 +159,45 @@ plot_grid(p0+ggtitle("Clustering without integration")+
               theme(plot.title = element_text(hjust = 0.5,size = 18)))
 dev.off()
 
+object@meta.data$conditions %<>% as.factor
+object@meta.data$conditions %<>% factor(levels = c("CD45-positive", "CD45-negative"))
+
 TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
-           label.repel = T, alpha = 1,
-           label.size = 4, repel = T,title = "All cluster in tSNE plot",do.print = T)
+           label.repel = T, alpha = 1,border = T,
+           label.size = 4, repel = T,title = "All cluster in tSNE plot resolution = 0.6",do.print = T)
+
+TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+           label.repel = T, alpha = 1,border = T,split.by = "conditions",
+           label.size = 4, repel = T,title = NULL,do.print = T)
+
+p3 <- TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+                 label.repel = T, alpha = 1,border = T,
+                 label.size = 4, repel = T,title = "Total Clusters",do.print = T)
+p4 <- TSNEPlot.1(object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+                 label.repel = T, alpha = 1,border = T, split.by = "conditions",
+                 label.size = 4, repel = T,title = NULL, do.print = T)
+
+jpeg(paste0(path,"S1_split_TSNEPlot_all.jpeg"), units="in", width=10, height=7,res=600)
+plot_grid(p3, p4, align = "h")
+dev.off()
+
+Idents(object) = "groups"
+for (sample in c("4950", "8524", "8525")) {
+    subset_object <- subset(object, idents = sample)
+    p5 <- TSNEPlot.1(subset_object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+                     label.repel = T, alpha = 1,label.size = 4, repel = T,border = T, 
+                     title = "Total Clusters",do.print = F)
+    
+    p6 <- TSNEPlot.1(subset_object, group.by="integrated_snn_res.0.6",pt.size = 1,label = T,no.legend = T,
+                     label.repel = T, alpha = 1,border = T, split.by = "conditions",
+                     label.size = 4, repel = T,title = NULL, do.print = F)
+    
+    jpeg(paste0(path,"S1_split_TSNEPlot_",sample,".jpeg"), units="in", width=10, height=7,res=600)
+    print(plot_grid(p5, p6, align = "h")+
+              ggtitle(sample)+
+              theme(plot.title = element_text(hjust = 0.5,size = 18)))
+    dev.off()
+}
 
 object@assays$integrated@scale.data = matrix(0,0,0)
 save(object, file = "data/BladderCancer_mm10_6_20190726.Rda")

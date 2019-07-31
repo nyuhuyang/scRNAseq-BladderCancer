@@ -7,9 +7,11 @@ library(Seurat)
 library(dplyr)
 library(tidyr)
 library(kableExtra)
+library(reshape2)
 library(gplots)
 library(MAST)
-source("R/utils/Seurat3_functions.R")
+library(cowplot)
+source("../R/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #3.1  Compare DE across all major cell types==================
@@ -20,109 +22,126 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 
 # 3.1.1 load data
 # Rename ident
-(load(file = "data/BladderCancer_mm10_6_20190706.Rda"))
-Idents(object) <-"RNA_snn_res.0.6"
+(load(file = "data/BladderCancer_mm10_6_20190726.Rda"))
+# markers by clusters =========
+Idents(object) <-"integrated_snn_res.0.6"
 object <- sortIdent(object,numeric = T)
-#TSNEPlot(object)
-BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, logfc.threshold = 0.5,
+TSNEPlot(object)
+DefaultAssay(object) <- "RNA"
+BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, logfc.threshold = 1,
                                         test.use = "MAST")
 write.csv(BladderCancer.markers,paste0(path,"BladderCancer_markers_clusters_logfc1.csv"))
-top <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(3, avg_logFC)
-object %<>% ScaleData(features = top$gene)
-DoHeatmap.1(object, marker_df = BladderCancer.markers, Top_n = 3, do.print=T, angle = 0,
+BladderCancer.markers = read.csv(paste0(path, "Heatmap and Differential analysis/BladderCancer_markers_clusters_logfc1.csv"),
+                                 row.names = 1)
+Top_n = 3
+top <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(Top_n, avg_logFC)
+add.genes = unique(as.character(top$gene))
+object %<>% ScaleData(features = add.genes)
+DoHeatmap.1(object, features = add.genes, Top_n = Top_n, do.print=T, angle = 0,
             group.bar = T, title.size = 20, no.legend = F,size=5,hjust = 0.5,
-            label=T, cex.row=6, legend.size = NULL,width=10, height=7,unique.name = T,
-            title = "Top 30 markers in CD45-negative and CD45-positive")
+            label=F, cex.row=6, legend.size = NULL,width=10, height=7,
+            pal_gsea = FALSE, unique.name = T,
+            title = paste("Top",Top_n,"markers in each cluster"))
 
-# split by conditions
-Idents(object) = "conditions"
-table(object@meta.data$conditions)
-conditions.markers <- FindAllMarkers.UMI(object = object, only.pos = F,logfc.threshold = 0.5,
-                                         test.use = "MAST")
-write.csv(conditions.markers,paste0(path,"BladderCancer_markers_conditions_logfc0.5.csv"))
-top <-  conditions.markers %>% group_by(cluster) %>% top_n(50, avg_logFC)
-object %<>% ScaleData(features = top$gene)
-DoHeatmap.1(object, marker_df = conditions.markers, Top_n = 40, do.print=T, angle = 0,
-            group.bar = T, title.size = 20, no.legend = F,size=5,hjust = 0.5,
-            label=F, cex.row=7, legend.size = NULL,width=10, height=7,unique.name = T,
-            title = "Top 40 markers in CD45-negative and CD45-positive")
 
-FeaturePlot(object, features = c("Cd74","Krt15"), split.by = "conditions", max.cutoff = 3, 
-            cols = c("grey", "red"))
+# Gene heatmap arrange by gene set ======================
+GeneSets = read.delim("data/seurat_resources/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
+                      stringsAsFactors = F)
+GeneSets %>% kable() %>% kable_styling()
+GeneSets.df <- as.data.frame(t(GeneSets))
+GeneSetNames <- c("Luminal","EMT_and_smooth_muscle","EMT_and_claudin",
+                         "Basal","Squamous","Immune",
+                         "Down_regulated_in_CIS","Up_regulated_in_CIS")
+GeneSets.df <- GeneSets.df[,GeneSetNames]
 
-plots <- VlnPlot(object, features = c("Cd74","Krt15","Trp53"), split.by = "conditions", group.by = "singler1sub", 
-                 pt.size = 0, combine = FALSE)
-jpeg(paste0(path,"Mouse_VlnPlot.jpeg"), units="in", width=7, height=10,res=600)
-CombinePlots(plots = plots, ncol = 1,legend = "bottom",label_x=1)
-dev.off()
-#split by samples
-object$tumor = gsub('4950PN|4950PP','4950',object$orig.ident)
-Idents(object) <- "RNA_snn_res.0.6"
+GeneSets.list <- df2list(GeneSets.df)
+#GeneSets_list <- lapply(GeneSets.list, function(x) Human2Mouse(x))
+GeneSets_list <- lapply(GeneSets.list, function(x) FilterGenes(object,x))
+heatmap_genes <- unlist(GeneSets_list,use.names = F)
 
-TSNEPlot.1(object,group.by = "RNA_snn_res.0.6",split.by = "tumor",do.print=T)
+object %<>% ScaleData(features = heatmap_genes)
+Idents(object) %<>% factor(levels =c(3,8,5,11,7,0,2,10,20,17,12,15,14,9,19,21,18,16,4,1,6,13))
+DoHeatmap.1(object, features = heatmap_genes, do.print=T, angle = 0,
+            group.bar = F, title.size = 20, no.legend = F,size=5,hjust = 0.5,
+            group.bar.height = 0,label=F, cex.row= 500/length(heatmap_genes), legend.size = 0,
+            width=8, height=6.5, unique.name = F, pal_gsea = F,
+            title = "mRNA Expression Subtypes (Mouse)")
 
-Idents(object) <- "tumor"
-all_clusters.markers <- FindAllMarkers.UMI(object = object, only.pos = F, 
-                                            test.use = "MAST")
-write.csv(all_clusters.markers,paste0(path,"B5011_4950.markers.csv"))
-DoHeatmap.1(object,B5011_4950.markers,Top_n = 25, do.print=T,angle = 0,
-            group.bar = T,title.size = 20, no.legend = F,size=4,label=T,
-            title = "Top 25 markers in between 4950 and B5011")
 
+marker_df <- gather(list2df(GeneSets_list))
+colnames(marker_df) = c("cluster","gene")
+marker_df = marker_df[nchar(marker_df$gene) >0 & !is.na(nchar(marker_df$gene)),]
+marker_df = marker_df[!duplicated(marker_df$gene),]
+marker_df$cluster[marker_df$cluster %in% c("Down_regulated_in_CIS", 
+                                           "Up_regulated_in_CIS")] = "Down_up_regulated_in_CIS"
+marker_df$cluster %<>% as.factor
+marker_df$cluster %<>% factor(levels = unique(marker_df$cluster))
+GeneSetColors <- c("#386CB0","#ff0000","#6A3D9A","#E6AB02","#F0027F","#BF5B17","#4DAF4A") 
+MakeCorlorBar(object, marker_df, color = GeneSetColors)
+
+
+Idents(object) = "groups"
+for (sample in c("4950", "8524", "8525")) {
+        subset_object <- subset(object, idents = sample)
+        Idents(subset_object) <-"integrated_snn_res.0.6"
+        subset_object %<>% ScaleData(features = heatmap_genes)
+        Idents(subset_object) %<>% factor(levels =c(3,8,5,11,7,0,2,10,20,17,12,15,14,9,19,21,18,16,4,1,6,13))
+        DoHeatmap.1(subset_object, features = heatmap_genes, do.print=T, angle = 0,
+                    group.bar = T, title.size = 20, no.legend = T,size=5,hjust = 0.5,
+                    group.bar.height = 0.02,label=T, cex.row= 500/length(heatmap_genes), 
+                    legend.size = 0,
+                    width=8, height=6.5, unique.name = T, pal_gsea = F,
+                    title = paste("mRNA Expression Subtypes in",sample,"(Mouse)"))
+        }
 
 
 # gene set heatmap  ===========
-GeneSets <- c("Luminal_markers","EMT_and_smooth_muscle","EMT_and_claudin_markers",
-              "Basal_markers","Squamous_markers")
-object <- SetAllIdent(object,id = "orig.ident")
+Idents(object) <-"integrated_snn_res.0.6"
+integrated_snn_res.0.6 <- AverageExpression(object,assays = "RNA", slot = "scale.data",
+                                            features = heatmap_genes)
 
-y = t(object@meta.data[,GeneSets]) %>% scale()
+y = as.matrix(integrated_snn_res.0.6$RNA)
 ## Column clustering (adjust here distance/linkage methods to what you need!)
-hc <- hclust(as.dist(1-cor(y, method="pearson")), method="complete")
-cc = gsub("_.*","",hc$labels)
-cc = gsub("4950PP","#E31A1C",cc)
-cc = gsub("4950PN","#33A02C",cc)
+hc <- hclust(as.dist(1-cor(y, method="pearson")))
 
-jpeg(paste0(path,"/Mouse_Heatmap_geneSet_zscore.jpeg"), units="in", width=10, height=7,res=600)
+jpeg(paste0(path,"Mouse_Heatmap_geneSet_zscore.jpeg"), units="in", width=10, height=7,res=600)
 heatmap.2(y,
-          Colv = as.dendrogram(hc), Rowv= FALSE,
-          ColSideColors = cc, trace ="none",labCol = FALSE,dendrogram = "column",#scale="row",
-          adjRow = c(1, NA),offsetRow = -52, cexRow = 1.5,
-          key.xlab = "Row z-score",
-          col = bluered)
-par(lend = 1)           # square line ends for the color legend
-legend(0, 0.83,       # location of the legend on the heatmap plot
-       legend = c("4950PP", "4950PN"), # category labels
-       col = c("#E31A1C", "#33A02C"),  # color key
-       lty= 1,             # line style
-       lwd = 10            # line width
-)
+          Colv = as.dendrogram(hc), 
+          Rowv= FALSE,
+          trace ="none",
+          dendrogram = "column",
+          key.xlab = "Row z-score")
 dev.off()
 
 # geom_density  ===========
-BladderCancer_subset <- SplitSeurat(BladderCancer)
-samples <- BladderCancer_subset[[length(BladderCancer_subset)]]
+BladderCancer_subset <- SplitObject(object,split.by = "groups")
+(samples <- sapply(BladderCancer_subset,function(x) unique(x@meta.data$groups)))
+BladderCancer_subset[[4]] = object
+(samples = c(samples,"all"))
+GeneSetNames <- c("Basal","EMT_and_claudin",
+                  "EMT_and_smooth_muscle","Luminal","Squamous")
 
 g <- list()
 for(i in 1:length(samples)){
-        data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSets] %>% t() %>% #scale(center = F) %>%
+        data.use <- BladderCancer_subset[[i]]@meta.data[,GeneSetNames] %>% t() %>% #scale(center = F) %>%
                 t() %>% as.data.frame() %>% gather(key = Subtypes.markers, value = ave.expr)
         g[[i]] <- ggplot(data.use, aes(x = ave.expr, fill = Subtypes.markers)) +
                 geom_density(alpha = .5) + scale_y_sqrt() +
                 theme(legend.position="none")+
                 xlab("Average expression (log nUMI)")+
-                ggtitle(samples[i])+
+                ggtitle(paste("density plot for",samples[i]))+
+                theme_bw() +
                 theme(text = element_text(size=15),
-                      legend.position=c(0.35,0.8),
-                      plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
-}
-jpeg(paste0(path,"Mouse_density.jpeg"), units="in", width=10, height=7,res=600)
-do.call(plot_grid,g)+
-        ggtitle("Muscle-invasive bladder cancer lineage scores in mouse samples")+
-        theme(text = element_text(size=15),							
-              plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
-dev.off()
-
+                      legend.position=c(0.5,0.8),
+                      plot.title = element_text(hjust = 0.5,size = 20, face = "plain"),
+                      panel.border = element_blank(), 
+                      panel.grid.major = element_blank(),
+                      panel.grid.minor = element_blank(), 
+                      axis.line = element_line(colour = "black"))
+        jpeg(paste0(path,"DensityPlot_",samples[i],".jpeg"), units="in", width=10, height=7,res=600)
+        print(g[[i]])
+        dev.off()
+        }
 
 # histgram  ===========
 BladderCancer_subset <- SplitSeurat(BladderCancer)

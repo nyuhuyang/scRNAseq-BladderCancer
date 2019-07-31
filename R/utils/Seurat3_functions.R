@@ -96,88 +96,6 @@ AddMetaColor<- function(object, label = NULL, colors = NULL){
     return(object)
 }
 
-
-# keep enrich.name as colname
-# add option for only.pos = FALSE
-.AddModuleScore <- function (object, genes.list = NULL, genes.pool = NULL, n.bin = 25, 
-          seed.use = 1, ctrl.size = 100, use.k = FALSE, enrich.name = "Cluster", 
-          random.seed = 1, only.pos = F) 
-{
-    set.seed(seed = random.seed)
-    genes.old <- genes.list
-    if (use.k) {
-        genes.list <- list()
-        for (i in as.numeric(x = names(x = table(object@kmeans.obj[[1]]$cluster)))) {
-            genes.list[[i]] <- names(x = which(x = object@kmeans.obj[[1]]$cluster == 
-                                                   i))
-        }
-        cluster.length <- length(x = genes.list)
-    }
-    else {
-        if (is.null(x = genes.list)) {
-            stop("Missing input gene list")
-        }
-        genes.list <- lapply(X = genes.list, FUN = function(x) {
-            return(intersect(x = x, y = rownames(x = object@data)))
-        })
-        cluster.length <- length(x = genes.list)
-    }
-    if (!all(Seurat:::LengthCheck(values = genes.list))) {
-        warning(paste("Could not find enough genes in the object from the following gene lists:", 
-                      paste(names(x = which(x = !Seurat:::LengthCheck(values = genes.list)))), 
-                      "Attempting to match case..."))
-        genes.list <- lapply(X = genes.old, FUN = CaseMatch, 
-                             match = rownames(x = object@data))
-    }
-    if (!all(Seurat:::LengthCheck(values = genes.list))) {
-        stop(paste("The following gene lists do not have enough genes present in the object:", 
-                   paste(names(x = which(x = !Seurat:::LengthCheck(values = genes.list)))), 
-                   "exiting..."))
-    }
-    if (is.null(x = genes.pool)) {
-        genes.pool = rownames(x = object@data)
-    }
-    data.avg <- Matrix::rowMeans(x = object@data[genes.pool, 
-                                                 ])
-    data.avg <- data.avg[order(data.avg)]
-    data.cut <- as.numeric(x = Hmisc::cut2(x = data.avg, m = round(x = length(x = data.avg)/n.bin)))
-    names(x = data.cut) <- names(x = data.avg)
-    ctrl.use <- vector(mode = "list", length = cluster.length)
-    for (i in 1:cluster.length) {
-        genes.use <- genes.list[[i]]
-        for (j in 1:length(x = genes.use)) {
-            ctrl.use[[i]] <- c(ctrl.use[[i]], names(x = sample(x = data.cut[which(x = data.cut == 
-                                                                                      data.cut[genes.use[j]])], size = ctrl.size, 
-                                                               replace = FALSE)))
-        }
-    }
-    ctrl.use <- lapply(X = ctrl.use, FUN = unique)
-    ctrl.scores <- matrix(data = numeric(length = 1L), nrow = length(x = ctrl.use), 
-                          ncol = ncol(x = object@data))
-    for (i in 1:length(ctrl.use)) {
-        genes.use <- ctrl.use[[i]]
-        ctrl.scores[i, ] <- Matrix::colMeans(x = object@data[genes.use, 
-                                                             ])
-    }
-    genes.scores <- matrix(data = numeric(length = 1L), nrow = cluster.length, 
-                           ncol = ncol(x = object@data))
-    for (i in 1:cluster.length) {
-        genes.use <- genes.list[[i]]
-        data.use <- object@data[genes.use, , drop = FALSE]
-        genes.scores[i, ] <- Matrix::colMeans(x = data.use)
-    }
-    genes.scores.use <- genes.scores - ctrl.scores
-    rownames(x = genes.scores.use) <- enrich.name
-    genes.scores.use <- as.data.frame(x = t(x = genes.scores.use))
-    if(only.pos) genes.scores.use <- genes.scores.use - apply(genes.scores.use,2,min)
-    rownames(x = genes.scores.use) <- colnames(x = object@data)
-    object <- AddMetaData(object = object, metadata = genes.scores.use, 
-                          col.name = colnames(x = genes.scores.use))
-    gc(verbose = FALSE)
-    return(object)
-}
-
-
 #' find Alias gene names
 #' @param df marker data frame with Alias notation
 #' @param gene gene name
@@ -243,6 +161,27 @@ color_scheme <- function(color,names){
     names(color_code) = names
     return(color_code)
 }
+
+
+# Basic function to convert human to mouse gene names
+#' @example genes <- Human2Mouse(humGenes)
+Human2Mouse <- function(x){
+    
+    require("biomaRt")
+    human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+    mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+    
+    genesV2 = getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol", 
+                     values = x , mart = human, attributesL = c("mgi_symbol"), 
+                     martL = mouse, uniqueRows=T)
+    
+    humanx <- unique(genesV2[, 2])
+    
+    # Print the first 6 genes found to the screen
+    print(head(humanx))
+    return(humanx)
+}
+
 
 # Combine and print multiple PNG,
 #' @param ... PNG path
@@ -345,8 +284,8 @@ DimElbowPlot.1 <- function (object, reduction.type = "pca", dims.plot = 20,slot 
 #                   group.order = major_cells,ident.use = "all cell types",
 #                   group.label.rot = T,cex.row = 5,remove.key =T)
 #
-DoHeatmap.1 <- function(object, marker_df, add.genes = NULL, no.legend =F,unique.name= F,
-                        Top_n = 10, features = NULL, cells = NULL, group.by = "ident", 
+DoHeatmap.1 <- function(object, marker_df,features = NULL, no.legend =F,unique.name= F,
+                        Top_n = 10, cells = NULL, group.by = "ident", 
                          group.bar = TRUE, disp.min = -2.5, disp.max = NULL, slot = "scale.data", 
                          assay = NULL, label = TRUE, cols=NULL, size = 5.5, hjust = 0, angle = 45, 
                          raster = TRUE, draw.lines = TRUE, lines.width = NULL, group.bar.height = 0.02, 
@@ -357,20 +296,16 @@ DoHeatmap.1 <- function(object, marker_df, add.genes = NULL, no.legend =F,unique
         v <- paste(unique(object$orig.ident),collapse = "_")
     } else v <- deparse(substitute(object))
     v = paste0(v,"_",FindIdentLabel(object))
+    if(!no.legend) v = paste0(v, "_Legend")
     if (!missing(x = marker_df)) {
         
         colnames(marker_df)[grep("cluster*.",colnames(marker_df))[1]] = "cluster"
         top <-  marker_df %>% 
             group_by(cluster) %>% 
             top_n(Top_n, avg_logFC)
-        } else { 
-            top <- list()
-            top$gene = NULL
-            }
-    if(!is.null(add.genes)) {
-        top_gene = c(as.character(top$gene),add.genes)
-    } else top_gene <- top$gene
-    heatmap <- DoHeatmap(object = object, features = as.vector(top_gene), cells = cells, group.by = group.by,
+        features = c(as.character(top$gene),features)
+        }
+    heatmap <- DoHeatmap(object = object, features = features, cells = cells, group.by = group.by,
                          group.bar = group.bar, disp.min = disp.min, disp.max = disp.max,
                          slot = slot, assay = assay, label = label, size = size,
                          hjust = hjust, angle = angle, raster = raster, draw.lines = draw.lines,
@@ -475,6 +410,298 @@ eulerr <- function(df, shape =  "circle", key = NULL,cut_off = "avg_logFC",
         
 }
 
+# Support the manual color scheme in blend figure
+TSNEPlot.1 <- function (object, features, dims = c(1, 2), cells = NULL, cols = if (blend) {
+    c("lightgrey", "#ff0000", "#00ff00") } else {
+    c("lightgrey", "blue") }, pt.size = NULL, order = FALSE, min.cutoff = NA, max.cutoff = NA, 
+    reduction = NULL, split.by = NULL, shape.by = NULL, slot = "data", 
+    blend = FALSE, blend.threshold = 0.5, label = FALSE, label.size = 4, 
+    repel = FALSE, ncol = NULL, combine = TRUE, coord.fixed = FALSE, 
+    by.col = TRUE, sort.cell = FALSE)
+{
+    no.right <- theme(axis.line.y.right = element_blank(), axis.ticks.y.right = element_blank(), 
+                      axis.text.y.right = element_blank(), axis.title.y.right = element_text(face = "bold", 
+                                                                                             size = 14, 
+                                                                                             margin = margin(r = 7)))
+    reduction <- reduction %||% Seurat:::DefaultDimReduc(object = object)
+    if (length(x = dims) != 2 || !is.numeric(x = dims)) {
+        stop("'dims' must be a two-length integer vector")
+    }
+    if (blend && length(x = features) != 2) {
+        stop("Blending feature plots only works with two features")
+    }
+    if (blend) {
+        default.colors <- eval(expr = formals(fun = FeaturePlot)$cols)
+        cols <- switch(EXPR = as.character(x = length(x = cols)), 
+                       `0` = {
+                           warning("No colors provided, using default colors", 
+                                   call. = FALSE, immediate. = TRUE)
+                           default.colors
+                       }, `1` = {
+                           warning("Only one color provided, assuming specified is double-negative and augmenting with default colors", 
+                                   call. = FALSE, immediate. = TRUE)
+                           c(cols, default.colors[2:3])
+                       }, `2` = {
+                           warning("Only two colors provided, assuming specified are for features and agumenting with '", 
+                                   default.colors[1], "' for double-negatives", 
+                                   call. = FALSE, immediate. = TRUE)
+                           c(default.colors[1], cols)
+                       }, `3` = cols,
+                       `4` = cols,
+                       {
+                           warning("More than four colors provided, using only first four", 
+                                   call. = FALSE, immediate. = TRUE)
+                           cols[1:4]
+                       })
+    }
+    if (blend && length(x = cols) < 3) {
+        stop("Blending feature plots only works with three colors; first one for negative cells")
+    }
+    dims <- paste0(Key(object = object[[reduction]]), dims)
+    cells <- cells %||% colnames(x = object)
+    data <- FetchData(object = object, vars = c(dims, "ident", 
+                                                features), cells = cells, slot = slot)
+    if (ncol(x = data) < 4) {
+        stop("None of the requested features were found: ", 
+             paste(features, collapse = ", "), " in slot ", slot, 
+             call. = FALSE)
+    } else if (!all(dims %in% colnames(x = data))) {
+        stop("The dimensions requested were not found", call. = FALSE)
+    }
+    features <- colnames(x = data)[4:ncol(x = data)]
+    min.cutoff <- mapply(FUN = function(cutoff, feature) {
+        return(ifelse(test = is.na(x = cutoff), yes = min(data[, feature]), no = cutoff))
+    }, cutoff = min.cutoff, feature = features)
+    max.cutoff <- mapply(FUN = function(cutoff, feature) {
+        return(ifelse(test = is.na(x = cutoff), yes = max(data[, 
+                                                               feature]), no = cutoff))
+    }, cutoff = max.cutoff, feature = features)
+    check.lengths <- unique(x = vapply(X = list(features, min.cutoff, 
+                                                max.cutoff), FUN = length, FUN.VALUE = numeric(length = 1)))
+    if (length(x = check.lengths) != 1) {
+        stop("There must be the same number of minimum and maximum cuttoffs as there are features")
+    }
+    brewer.gran <- ifelse(test = length(x = cols) == 1, 
+                          yes = brewer.pal.info[cols, ]$maxcolors, 
+                          no = length(x = cols))
+    data[, 4:ncol(x = data)] <- sapply(X = 4:ncol(x = data), 
+                                       FUN = function(index) {
+                                           data.feature <- as.vector(x = data[, index])
+                                           min.use <- Seurat:::SetQuantile(cutoff = min.cutoff[index - 
+                                                                                          3], data.feature)
+                                           max.use <- Seurat:::SetQuantile(cutoff = max.cutoff[index - 
+                                                                                          3], data.feature)
+                                           data.feature[data.feature < min.use] <- min.use
+                                           data.feature[data.feature > max.use] <- max.use
+                                           if (brewer.gran == 2) {
+                                               return(data.feature)
+                                           }
+                                           data.cut <- if (all(data.feature == 0)) {
+                                               0
+                                           }
+                                           else {
+                                               as.numeric(x = as.factor(x = cut(x = as.numeric(x = data.feature), 
+                                                                                breaks = brewer.gran)))
+                                           }
+                                           return(data.cut)
+                                       })
+    colnames(x = data)[4:ncol(x = data)] <- features
+    rownames(x = data) <- cells
+    data$split <- if (is.null(x = split.by)) {
+        Seurat:::RandomName()
+    } else {
+        switch(EXPR = split.by, ident = Idents(object = object)[cells], 
+               object[[split.by, drop = TRUE]][cells])
+    }
+    if (!is.factor(x = data$split)) {
+        data$split <- factor(x = data$split)
+    }
+    if (!is.null(x = shape.by)) {
+        data[, shape.by] <- object[[shape.by, drop = TRUE]]
+    }
+    plots <- vector(mode = "list", length = ifelse(test = blend, 
+                                                   yes = 4, no = length(x = features) * length(x = levels(x = data$split))))
+    xlims <- c(floor(x = min(data[, dims[1]])), ceiling(x = max(data[, dims[1]])))
+    ylims <- c(floor(min(data[, dims[2]])), ceiling(x = max(data[, dims[2]])))
+    if (blend) {
+        ncol <- 4
+        color.matrix <- Seurat:::BlendMatrix(two.colors = cols[2:3], 
+                                    col.threshold = blend.threshold, negative.color = cols[1])
+        if(length(cols)>3) col.both <- cols[4]
+        cols <- cols[2:3]
+        colors <- list(color.matrix[, 1], color.matrix[1, ], 
+                       as.vector(x = color.matrix))
+    }
+    for (i in 1:length(x = levels(x = data$split))) {
+        ident <- levels(x = data$split)[i]
+        data.plot <- data[as.character(x = data$split) == ident, 
+                          , drop = FALSE]
+        if (blend) {
+            features <- features[1:2]
+            no.expression <- features[colMeans(x = data.plot[, features]) == 0]
+            if (length(x = no.expression) != 0) {
+                stop("The following features have no value: ", 
+                     paste(no.expression, collapse = ", "), call. = FALSE)
+            }
+            data.plot <- cbind(data.plot[, c(dims, "ident")], 
+                               Seurat:::BlendExpression(data = data.plot[, features[1:2]]))
+            features <- colnames(x = data.plot)[4:ncol(x = data.plot)]
+        }
+        for (j in 1:length(x = features)) {
+            feature <- features[j]
+            if (blend) {
+                cols.use <- as.numeric(x = as.character(x = data.plot[, feature])) + 1
+                cols.use <- colors[[j]][sort(x = unique(x = cols.use))]
+            } else {
+                cols.use <- NULL
+            }
+            data.single <- data.plot[, c(dims, "ident", feature, 
+                                         shape.by)]
+            if (sort.cell) {
+                data.single <- data.single[order(data.single[, 
+                                                             feature]), ]
+            }
+            plot <- Seurat:::SingleDimPlot(data = data.single, dims = dims, 
+                                  col.by = feature, order = order, pt.size = pt.size, 
+                                  cols = cols.use, shape.by = shape.by, label = FALSE) + 
+                scale_x_continuous(limits = xlims) + scale_y_continuous(limits = ylims) + 
+                theme_cowplot()
+            if (label) {
+                plot <- LabelClusters(plot = plot, id = "ident", 
+                                      repel = repel, size = label.size)
+            }
+            if (length(x = levels(x = data$split)) > 1) {
+                plot <- plot + theme(panel.border = element_rect(fill = NA, 
+                                                                 colour = "black"))
+                plot <- plot + if (i == 1) {
+                    labs(title = feature)
+                }
+                else {
+                    labs(title = NULL)
+                }
+                if (j == length(x = features) && !blend) {
+                    suppressMessages(expr = plot <- plot + scale_y_continuous(sec.axis = dup_axis(name = ident)) + 
+                                         no.right)
+                }
+                if (j != 1) {
+                    plot <- plot + theme(axis.line.y = element_blank(), 
+                                         axis.ticks.y = element_blank(), axis.text.y = element_blank(), 
+                                         axis.title.y.left = element_blank())
+                }
+                if (i != length(x = levels(x = data$split))) {
+                    plot <- plot + theme(axis.line.x = element_blank(), 
+                                         axis.ticks.x = element_blank(), axis.text.x = element_blank(), 
+                                         axis.title.x = element_blank())
+                }
+            }
+            else {
+                plot <- plot + labs(title = feature)
+            }
+            if (!blend) {
+                plot <- plot + guides(color = NULL)
+                cols.grad <- cols
+                if (length(x = cols) == 1) {
+                    plot <- plot + scale_color_brewer(palette = cols)
+                }
+                else if (length(x = cols) > 1) {
+                    unique.feature.exp <- unique(data.plot[, feature])
+                    if (length(unique.feature.exp) == 1) {
+                        warning("All cells have the same value (", 
+                                unique.feature.exp, ") of ", feature, 
+                                ".")
+                        if (unique.feature.exp == 0) {
+                            cols.grad <- cols[1]
+                        }
+                        else {
+                            cols.grad <- cols
+                        }
+                    }
+                    plot <- suppressMessages(expr = plot + scale_color_gradientn(colors = cols.grad, 
+                                                                                 guide = "colorbar"))
+                }
+            }
+            if (coord.fixed) {
+                plot <- plot + coord_fixed()
+            }
+            plot <- plot
+            plots[[(length(x = features) * (i - 1)) + j]] <- plot
+        }
+    }
+    if (blend) {
+        blend.legend <- Seurat:::BlendMap(color.matrix = color.matrix)
+        for (ii in 1:length(x = levels(x = data$split))) {
+            suppressMessages(expr = plots <- append(x = plots, 
+                values = list(blend.legend + scale_y_continuous(sec.axis = dup_axis(name = ifelse(test = length(x = levels(x = data$split)) > 1, 
+                                                                                                  yes = levels(x = data$split)[ii], 
+                                                                                                  no = "")), 
+                                                                expand = c(0, 0)) + labs(x = features[1],y = features[2],
+                                                                                         title = if (ii == 1) { paste("Color threshold:", blend.threshold) 
+                                                                                             } else {NULL}) + 
+                                  no.right), after = 4 * ii - 1))
+        }
+    }
+    plots <- Filter(f = Negate(f = is.null), x = plots)
+    if (combine) {
+        if (is.null(x = ncol)) {
+            ncol <- 2
+            if (length(x = features) == 1) {
+                ncol <- 1
+            }
+            if (length(x = features) > 6) {
+                ncol <- 3
+            }
+            if (length(x = features) > 9) {
+                ncol <- 4
+            }
+        }
+        ncol <- ifelse(test = is.null(x = split.by) || blend, 
+                       yes = ncol, no = length(x = features))
+        legend <- if (blend) {
+            "none"
+        }
+        else {
+            split.by %iff% "none"
+        }
+        if (by.col && !is.null(x = split.by) && !blend) {
+            plots <- lapply(X = plots, FUN = function(x) {
+                return(suppressMessages(expr = x + theme_cowplot() + 
+                                            ggtitle("") + scale_y_continuous(sec.axis = dup_axis(name = "")) + 
+                                            no.right))
+            })
+            nsplits <- length(x = levels(x = data$split))
+            idx <- 1
+            for (i in (length(x = features) * (nsplits - 1) + 
+                       1):(length(x = features) * nsplits)) {
+                plots[[i]] <- suppressMessages(plots[[i]] + 
+                                                   scale_y_continuous(sec.axis = dup_axis(name = features[[idx]])) + 
+                                                   no.right)
+                idx <- idx + 1
+            }
+            idx <- 1
+            for (i in which(x = 1:length(x = plots)%%length(x = features) == 
+                            1)) {
+                plots[[i]] <- plots[[i]] + ggtitle(levels(x = data$split)[[idx]])
+                idx <- idx + 1
+            }
+            idx <- 1
+            if (length(x = features) == 1) {
+                for (i in 1:length(x = plots)) {
+                    plots[[i]] <- plots[[i]] + ggtitle(levels(x = data$split)[[idx]])
+                    idx <- idx + 1
+                }
+            }
+            plots <- plots[c(do.call(what = rbind, args = split(x = 1:length(x = plots), 
+                                                                f = ceiling(x = seq_along(along.with = 1:length(x = plots))/length(x = features)))))]
+            plots <- CombinePlots(plots = plots, ncol = nsplits, 
+                                  legend = legend)
+        } else {
+            plots <- CombinePlots(plots = plots, ncol = ncol, 
+                                  legend = legend, nrow = split.by %iff% length(x = levels(x = data$split)))
+        }
+    }
+    return(plots)
+}
+
 
 FgseaBarplot <- function(pathways=hallmark, stats=res, nperm=1000,cluster = 1,
                          sample="",pathway.name = "Hallmark", hjust=0.5, 
@@ -504,6 +731,8 @@ FgseaBarplot <- function(pathways=hallmark, stats=res, nperm=1000,cluster = 1,
     out_write$To_Plot_value <- out_write$To_Plot_value*out_write$sign
     out_write$sign <- ifelse(out_write$NES >0,"Upregulated", "Downregulated")
     
+    legend_title = ifelse(cut.off == "padj",yes = "Adjusted p value", no = "P value")
+    
     p<-ggbarplot(out_write,
                  x = "Pathways",
                  y = "NES",
@@ -513,7 +742,7 @@ FgseaBarplot <- function(pathways=hallmark, stats=res, nperm=1000,cluster = 1,
                  sort.val = "asc",          # Sort the value in descending order
                  sort.by.groups = FALSE,     # Don't sort inside each group
                  ylab = 'Normalized Enrichment Score',
-                 legend.title = paste(cut.off,"<",cut.off.value),
+                 legend.title = paste(legend_title,"<",cut.off.value),
                  rotate = TRUE,
                  title = paste(pathway.name,"pathways in",sample,cluster),
                  ggtheme = theme_minimal(base_size = 15))+
@@ -1017,30 +1246,34 @@ list2df <- function(list){
 #' @param object Seurat object
 #' @param marker_df FindAllMarkers results
 #' @param Top_n top_n(Top_n, avg_logFC)
-#' @param add.genes extra genes to add beyound FindAllMarkers results 
+#' @param features extra genes to add beyound FindAllMarkers results 
 #' @param remove.legend TRUE/FALSE
 #' @param color color scheme
 #' @export g vertical ggplot
 #' @example MakeCorlorBar(EC, top, Top_n=40)
-MakeCorlorBar <- function(object, marker_df, Top_n = NULL, add.genes = NULL, color =NULL,
-                          no.legend =F, legend.size = NULL,do.print = TRUE,do.return=FALSE,width=10, height=7){
+MakeCorlorBar <- function(object, marker_df, Top_n = NULL, features = NULL, color =NULL,unique.name = F,
+                          no.legend =F, legend.size = 10,do.print = TRUE,do.return=FALSE,width=10, height=7){
+    if(unique.name) {
+        v <- paste(unique(object$orig.ident),collapse = "_")
+    } else v <- deparse(substitute(object))
+    v = paste0(v,"_",FindIdentLabel(object))
+    if(!no.legend) v = paste0(v, "_Legend")
     
-        if(!is.null(Top_n)){
-        colnames(marker_df)[8] ="cluster"
-        marker_df <- marker_df %>% 
-        group_by(cluster) %>% 
-        top_n(Top_n, avg_logFC)
-        }
-        marker_df <- marker_df[,c("gene","cluster")]
-        
-        if(!is.null(add.genes)){
-        marker_bar <- data.frame("gene" = add.genes,
+    if(!is.null(features)){
+        marker_bar <- data.frame("gene" = features,
                                  "cluster" = "marker.genes")
-        marker_df = rbind.data.frame(marker_df[,c("gene","cluster")],
+        rownames(marker_bar) = marker_bar$gene 
+    } else marker_bar <- NULL
+    
+    if(!missing(marker_df)){
+        colnames(marker_df)[grep("cluster",colnames(marker_df))] ="cluster"
+        marker_df %<>% group_by(cluster)
+        if(!is.null(Top_n)) marker_df %<>% top_n(Top_n, avg_logFC)
+        marker_df = rbind(marker_df[,c("gene","cluster")],
                                      marker_bar)
-        }
+    } else marker_df <- marker_bar
 
-    gene.use = rownames(object@assays$RNA@scale.data)
+    gene.use = rownames(object@assays$RNA@data)
     marker_df = marker_df[!duplicated(marker_df$gene),]
     marker_df = marker_df[marker_df$gene %in% gene.use,]
     
@@ -1067,11 +1300,12 @@ MakeCorlorBar <- function(object, marker_df, Top_n = NULL, add.genes = NULL, col
               axis.ticks.x=element_blank(),
               axis.title.y=element_blank(),
               axis.text.y=element_blank(),
-              axis.ticks.y=element_blank(),
-              legend.title = element_text(size=legend.size*1.2),
-              legend.text = element_text(size=legend.size),
-              legend.key.size = unit(legend.size/5,"line"))+
-        coord_flip() + scale_x_reverse()+
+              axis.ticks.y=element_blank())+
+    coord_flip() + scale_x_reverse()
+        
+    if(!no.legend) g = g + theme(legend.title = element_text(size=legend.size*1.2),
+                                 legend.text = element_text(size=legend.size),
+                                 legend.key.size = unit(legend.size/5,"line"))
     if(no.legend) g = g + theme(legend.position="none")
     if(!is.null(color)) {
         colors_fill = color_scheme(color = color,
@@ -1079,10 +1313,9 @@ MakeCorlorBar <- function(object, marker_df, Top_n = NULL, add.genes = NULL, col
         g = g + scale_fill_manual(values = colors_fill)
     }
     if(do.print) {
-        v <- deparse(substitute(object))
         path <- paste0("output/",gsub("-","",Sys.Date()),"/")
         if(!dir.exists(path)) dir.create(path, recursive = T)
-        jpeg(paste0(path,"Doheatmap_",v,"_top",Top_n,"_",FindIdentLabel(object),"_vbar.jpeg"),
+        jpeg(paste0(path,"Doheatmap_vcolorbar_",v,".jpeg"),
              units="in", width=width, height=height,res=600)
         print(g)
         dev.off()
@@ -1413,15 +1646,17 @@ TSNEPlot.1 <- function(object,dims = c(1, 2),cells = NULL,cols = NULL,pt.size = 
         VarName <- unique(object$orig.ident)
         VarName <- paste(VarName[1:min(5,length(VarName))],collapse = "_")
     } else VarName <- deparse(substitute(object))
-    VarName = paste0(VarName,"_",group.by %||% FindIdentLabel(object))
+    VarName = paste0(VarName,"_",group.by %||% FindIdentLabel(object),
+                     ifelse(!is.null(split.by), yes = paste0("_",split.by), no =""))
+    
     if (length(x = dims) != 2) {
         stop("'dims' must be a two-length vector")
     }
     reduction <- reduction %||% Seurat:::DefaultDimReduc(object = object)
     cells <- cells %||% colnames(x = object)
-    data <- Embeddings(object = object[[reduction]])[cells,dims]
+    data <- object@reductions$tsne@cell.embeddings[cells,dims]
     data <- as.data.frame(x = data)
-    dims <- paste0(Key(object = object[[reduction]]), dims)
+    dims <- paste0(object@reductions$tsn@key, dims)
     object[["ident"]] <- Idents(object = object)
     group.by <- group.by %||% "ident"
     data[, group.by] <- object[[group.by]][cells, , drop = FALSE]
@@ -1453,12 +1688,15 @@ TSNEPlot.1 <- function(object,dims = c(1, 2),cells = NULL,cols = NULL,pt.size = 
                                alpha = alpha)
         }
         if (!is.null(x = split.by)) {
-            plot <- plot + Seurat:::FacetTheme() + facet_wrap(facets = vars(!!sym(x = split.by)),
-            ncol = if (length(x = group.by) > 1 || is.null(x = ncol)) {
-                length(x = unique(x = data[, split.by]))
-            } else ncol )
-            if(border == TRUE) plot = plot + theme(panel.border = element_rect(colour = "black"))
+            plot <- plot + Seurat:::FacetTheme() + 
+                facet_wrap(facets = vars(!!sym(x = split.by)),
+                           ncol = if (length(x = group.by) > 1 || is.null(x = ncol)) {
+                               length(x = unique(x = data[, split.by]))
+                               } else ncol )+
+                theme(strip.text = element_text(face="plain",size=15))
+            
         }
+        if(border == TRUE) plot = plot + theme(panel.border = element_rect(colour = "black"))
         return(plot)
     })
     if (combine) {

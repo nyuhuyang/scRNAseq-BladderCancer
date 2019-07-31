@@ -110,60 +110,83 @@ object %<>% RenameIdents('0' = 'Fibroblasts',
 object[["cell.types"]] <- as.character(Idents(object))
 rename_cells <- rownames(object@meta.data)[grep("A",object$cell.types)]
 object@meta.data[rename_cells,"cell.types"] = as.character(object@meta.data[rename_cells,"singler1main"])
+
+cluster_5_4950_8525 <- rownames(object@meta.data)[object$integrated_snn_res.0.6 %in% 5 & 
+                                                      object$groups %in% c("4950","8525")]
+object@meta.data[cluster_5_4950_8525,"cell.types"] = "Epithelial cells"
+
 table(object[["cell.types"]])
 object[["cell.types"]] %>% table() %>% kable() %>% kable_styling()
+object[["cell.types"]] %>% table() %>% prop.table() %>% kable() %>% kable_styling()
 
 object <- AddMetaColor(object = object, label= "cell.types", colors = singler_colors2)
 Idents(object) <- "cell.types"
 object %<>% sortIdent()
 TSNEPlot.1(object, group.by="cell.types",cols = ExtractMetaColor(object),
-           label = T,pt.size = 1,no.legend = T,label.repel = T,
+           label = T,pt.size = 1,no.legend = F,label.repel = T,
            label.size = 4, repel = T,do.return= T,do.print = T,alpha = 0.9,
            title = "All cell types in tSNE plot")
 
 save(object,file="data/BladderCancer_mm10_6_20190726.Rda")
 ##############################
-# draw tsne plot
+# split tsne plot
 ##############################
-object@meta.data$orig.ident %<>% factor(levels = c("4950N","8524N","8525N",
-                                                   "4950P","8524P","8525P"))
-
-Idents(object) <- "singler1sub"
 TSNEPlot.1(object, cols = ExtractMetaColor(object),label = F,pt.size = 1,
-         split.by = "orig.ident", group.by = "singler1sub",label.size = 4, repel = T, 
-         no.legend = T, do.print = T,
-         ncol=3,title = "tSNE plots for all samples")
+         split.by = "groups", group.by = "cell.types",label.size = 4, repel = T, 
+         no.legend = T, do.print = T,border = T,
+         ncol=3,title = "Compare cell types in each sample")
+table(object$cell.types,object@meta.data[,'groups']) %>% kable() %>% kable_styling()
 
-UMAPPlot.1(object, cols = ExtractMetaColor(object),label = F,pt.size = 1,
-           split.by = "orig.ident", label.size = 4, repel = T, 
-           no.legend = T, do.print = T,unique.name =T,
-           ncol=3,title = "UMAP plots for all samples")
-##############################
-# subset tsne plot
-##############################
-df_samples <- readxl::read_excel("doc/190625_scRNAseq_info.xlsx")
-colnames(df_samples) <- colnames(df_samples) %>% tolower
-keep = df_samples$tests %in% paste0("test",c(2,4,5))
-df_samples = df_samples[keep,]
-(groups = unique(df_samples$groups))
-
-Idents(object) <- "groups"
-for (i in 1:length(groups)){
-        subset_object <- subset(object, idents = groups[i])
-        Idents(subset_object) = "singler1sub"
-        TSNEPlot.1(subset_object, cols = ExtractMetaColor(subset_object),label = F,pt.size = 1,
-                   group.by = "singler1sub",label.size = 4, repel = T, 
-                   no.legend = F, do.print = T,unique.name =T,
-                   ncol=3,title = paste("tSNE plots for",groups[i]))
+Idents(object) = "groups"
+for (sample in c("4950", "8524", "8525")) {
+        subset_object <- subset(object, idents = sample)
+        Idents(subset_object) = "cell.types"
+        p1 <- TSNEPlot.1(subset_object, group.by="cell.types",pt.size = 1,
+                         label = F,no.legend = T,cols = ExtractMetaColor(subset_object),
+                         label.repel = F, alpha = 1,label.size = 4, repel = T,border = T, 
+                         title = "Total Clusters",do.print = F)
         
-        UMAPPlot.1(subset_object, cols = ExtractMetaColor(subset_object),label = F,pt.size = 1,
-                   label.size = 4, repel = T, 
-                   no.legend = F, do.print = T,unique.name =T,
-                   ncol=3,title = paste("UMAP plots for",groups[i]))
+        p2 <- TSNEPlot.1(subset_object, group.by="cell.types",pt.size = 1,
+                         label = F,no.legend = T,cols = ExtractMetaColor(subset_object),
+                         label.repel = F, alpha = 1,border = T, split.by = "conditions",
+                         label.size = 4, repel = T,title = NULL, do.print = F)
+        
+        jpeg(paste0(path,"S1_split_TSNEPlot_",sample,"_cell.types.jpeg"), units="in", width=10, height=7,res=600)
+        print(plot_grid(p1, p2, align = "h")+
+                      ggtitle(sample)+
+                      theme(plot.title = element_text(hjust = 0.5,size = 18)))
+        dev.off()
 }
 
-cell <- colnames(BladderCancer)[BladderCancer$singler1main %in% "Stromal cells"]
-cell <- gsub("PN_","N_",cell)
-cell <- gsub("PP_","P_",cell)
-table(object@meta.data[cell,"singler1main"])
+##############################
+# split tsne plot and FeaturePlot
+##############################
+DefaultAssay(object) = "RNA"
+Idents(object) = "cell.types"
+object %<>% sortIdent()
+TSNEPlot.1(object, group.by = "cell.types",split.by = "conditions",
+           cols = ExtractMetaColor(object),label = T,label.size = 2, ncol = 1,
+           width=3, height=7,do.print = T,border = T, no.legend = T,alpha = 1)
 
+object@meta.data$project = "Mouse_tumor"
+Idents(object) = "project"
+FeaturePlot.1(object, features= c("Basal","Luminal","EMT_and_claudin",
+                                "P53_like","neuroendocrine","Neuronal_differentiation"),
+              ncol = 3,do.print = T,width=8, height=7, border = T)
+
+
+Idents(object) = "groups"
+for (sample in c("4950", "8524", "8525")) {
+        subset_object <- subset(object, idents = sample)
+        Idents(subset_object) = "cell.types"
+        subset_object %<>% sortIdent()
+        TSNEPlot.1(subset_object, group.by = "cell.types",split.by = "conditions",
+                   cols = ExtractMetaColor(subset_object),label = T,label.size = 2, ncol = 1,
+                   width=3, height=7,do.print = T,border = T, no.legend = T,alpha = 1,
+                   unique.name = T)
+
+        FeaturePlot.1(subset_object, features= c("Basal","Luminal","EMT_and_claudin",
+                                          "P53_like","neuroendocrine","Neuronal_differentiation"),
+                      ncol = 3,do.print = T,width=8, height=7, border = T,
+                      unique.name = T)
+}
