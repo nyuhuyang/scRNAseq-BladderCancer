@@ -75,9 +75,9 @@ object <- AddMetaData(object = object,metadata = singlerDF)
 object <- AddMetaColor(object = object, label= "singler1main", colors = singler_colors1)
 Idents(object) <- "singler1main"
 object %<>% sortIdent()
-TSNEPlot.1(object, group.by="singler1main",cols = ExtractMetaColor(object),
-           label = T,pt.size = 1,no.legend = T,label.repel = T,
-         label.size = 4, repel = T,do.return= T,do.print = T,alpha = 0.9,
+TSNEPlot.1(object, cols = ExtractMetaColor(object),split.by = "conditions",
+           label = F,pt.size = 0.3,no.legend = F,label.repel = F,legend.size = 10,
+           repel = T,do.return= T,do.print = T,alpha = 0.9,border = T,
          title = "All cell types identified by Mouse RNA-seq reference database")
 
 save(object,file="data/BladderCancer_mm10_6_20190726.Rda")

@@ -22,15 +22,16 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 
 # 3.1.1 load data
 # Rename ident
-(load(file = "data/BladderCancer_mm10_6_20190726.Rda"))
+(load(file = "data/BladderCancer_H2_20181109.Rda"))
+object <- UpdateSeuratObject(BladderCancer)
 # markers by clusters =========
-Idents(object) <-"integrated_snn_res.0.6"
+Idents(object) <-"res.0.6"
 object <- sortIdent(object,numeric = T)
 TSNEPlot(object)
 DefaultAssay(object) <- "RNA"
 BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, logfc.threshold = 1,
                                         test.use = "MAST")
-write.csv(BladderCancer.markers,paste0(path,"BladderCancer_Mouse_markers_clusters_logfc0.25.csv"))
+write.csv(BladderCancer.markers,paste0(path,"BladderCancer_markers_clusters_logfc1.csv"))
 BladderCancer.markers = read.csv(paste0(path, "Heatmap and Differential analysis/BladderCancer_markers_clusters_logfc1.csv"),
                                  row.names = 1)
 Top_n = 3
@@ -42,6 +43,21 @@ DoHeatmap.1(object, features = add.genes, Top_n = Top_n, do.print=T, angle = 0,
             label=F, cex.row=6, legend.size = NULL,width=10, height=7,
             pal_gsea = FALSE, unique.name = T,
             title = paste("Top",Top_n,"markers in each cluster"))
+
+# top marker list individually for human
+Idents(object) <-"res.0.6"
+object <- sortIdent(object,numeric = T)
+TSNEPlot(object)
+DefaultAssay(object) <- "RNA"
+Idents(object) <-"orig.ident"
+for(sample in unique(object$orig.ident)){
+        subset_object <- subset(object, idents = sample)
+        Idents(subset_object) <-"res.0.6"
+        BladderCancer.markers <- FindAllMarkers.UMI(object = subset_object, only.pos = F, logfc.threshold = 0.25,
+                                                    test.use = "MAST")
+        write.csv(BladderCancer.markers,
+                  paste0(path,"BladderCancer_Human_",sample,"_logfc0.25.csv"))
+}
 
 
 # Gene heatmap arrange by gene set ======================
@@ -78,7 +94,6 @@ marker_df$cluster %<>% as.factor
 marker_df$cluster %<>% factor(levels = unique(marker_df$cluster))
 GeneSetColors <- c("#386CB0","#ff0000","#6A3D9A","#E6AB02","#F0027F","#BF5B17","#4DAF4A") 
 MakeCorlorBar(object, marker_df, color = GeneSetColors)
-
 
 Idents(object) = "groups"
 for (sample in c("4950", "8524", "8525")) {
@@ -164,4 +179,10 @@ do.call(plot_grid,g1)+
         ggtitle("Muscle-invasive bladder cancer lineage scores in mouse samples")+
         theme(text = element_text(size=15),							
               plot.title = element_text(hjust = 0.5,size = 15, face = "bold"))
+dev.off()
+
+# RidgePlot ================
+jpeg(paste0(path,"Human_Luminal_RidgePlot.jpeg"), units="in", width=10, height=7,res=600)
+print(RidgePlot(object, features = c("Luminal"), group.by = "orig.ident")+
+        theme(plot.title = element_text(hjust = 0.5)))
 dev.off()
