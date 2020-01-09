@@ -3,8 +3,7 @@ library(dplyr)
 library(tidyr)
 library(kableExtra)
 library(magrittr)
-source("R/utils/Seurat3_functions.R")
-source("R/utils/FeaturePlot.R")
+source("../R/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 marker_path <- paste0(path,"markers/")
@@ -110,4 +109,68 @@ for(i in 1:length(features.list)){
               guides(colour = guide_legend(override.aes = list(size=5)), 
                      shape = guide_legend(override.aes = list(size=5))))
     dev.off()
+}
+
+
+#========== GenePlot ============
+Idents(object) = "conditions"
+Idents(object) %<>% factor(levels = c("CD45-negative","CD45-positive"))
+DefaultAssay(object) = "RNA"
+feature1 <- FilterGenes(object,c("KRT5","KRT14",
+                                 "KRT18","KRT6A","ACTG2",
+                                 "CLDN3","CLDN4", "CLDN7",
+                                 "CLDN7", "CLDN4","CLDN4"),unique = F)
+feature2 <- FilterGenes(object,c("KRT8","KRT8",
+                                 "KRT8","KRT5","KRT5",
+                                 "VIM","VIM","VIM",
+                                 "CLDN3","CLDN3","CLDN3"),unique = F)
+
+for(i in 1:5){
+    jpeg(paste0(path,feature1[i],"+",feature2[i],".jpeg"), 
+         units="in", width=10, height=7,res=600)
+    print(FeatureScatter(object, feature1 = feature1[i], 
+                         feature2 = feature2[i]))
+    dev.off()
+    
+}
+
+KRT5_KRT8_p <- subset(object, subset = Krt5 > 0 & Krt8 > 0)
+FeatureScatter(KRT5_KRT8_p, feature1 = feature1[i], feature2 = feature2[i])
+
+KRT5_KRT8_n <- subset(object, subset = Krt5 == 0 & Krt8 == 0)
+FeatureScatter(KRT5_KRT8_n, feature1 = feature1[i], feature2 = feature2[i])
+
+KRT14_KRT8_p <- subset(object, subset = Krt14 > 0 & Krt8 > 0)
+FeatureScatter(KRT14_KRT8_p, feature1 = feature1[i], feature2 = feature2[i])
+
+for(i in 6:length(feature1)){
+    jpeg(paste0(path,feature1[i],"+",feature2[i]," Krt5_Krt8_p.jpeg"), 
+         units="in", width=10, height=7,res=600)
+    print(FeatureScatter(KRT5_KRT8_p, feature1 = feature1[i],
+                         feature2 = feature2[i])+
+              xlim(0,max(object@assays$RNA[feature1[i],]))+
+              ylim(0,max(object@assays$RNA[feature2[i],])))
+    dev.off()
+    svMisc::progress(i/length(feature1)*100)
+}
+
+for(i in 6:length(feature1)){
+    jpeg(paste0(path,feature1[i],"+",feature2[i]," Krt5_Krt8_n.jpeg"), 
+         units="in", width=10, height=7,res=600)
+    print(FeatureScatter(KRT5_KRT8_n, feature1 = feature1[i], feature2 = feature2[i])+
+              xlim(0,max(object@assays$RNA[feature1[i],]))+
+              ylim(0,max(object@assays$RNA[feature2[i],])))
+    dev.off()
+    svMisc::progress(i/length(feature1)*100)
+}
+
+for(i in 6:length(feature1)){
+    jpeg(paste0(path,feature1[i],"+",feature2[i]," Krt14_Krt8_p.jpeg"), 
+         units="in", width=10, height=7,res=600)
+    print(FeatureScatter(KRT14_KRT8_p, feature1 = feature1[i],
+                         feature2 = feature2[i])+
+              xlim(0,max(object@assays$RNA[feature1[i],]))+
+              ylim(0,max(object@assays$RNA[feature2[i],])))
+    dev.off()
+    svMisc::progress(i/length(feature1)*100)
 }

@@ -11,6 +11,7 @@ Single-cell RNA-seq data is pre-processed with the scater R package. Data normal
 R version 3.6.0 <br />
 Seurat_3.0.3 <br />
 MAST_1.10.0 <br />
+scater_1.12.0 <br />
 scran_1.12.1 <br />
 SingleR_1.0.1 <br />
 

@@ -31,9 +31,7 @@ DefaultAssay(object) <- "RNA"
 BladderCancer.markers <- FindAllMarkers.UMI(object = object, only.pos = F, logfc.threshold = 1,
                                         test.use = "MAST")
 write.csv(BladderCancer.markers,paste0(path,"BladderCancer_Mouse_markers_clusters_logfc0.25.csv"))
-BladderCancer.markers = read.csv(paste0(path, "Heatmap and Differential analysis/BladderCancer_markers_clusters_logfc1.csv"),
-                                 row.names = 1)
-Top_n = 3
+
 top <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(Top_n, avg_logFC)
 add.genes = unique(as.character(top$gene))
 object %<>% ScaleData(features = add.genes)
@@ -43,6 +41,19 @@ DoHeatmap.1(object, features = add.genes, Top_n = Top_n, do.print=T, angle = 0,
             pal_gsea = FALSE, unique.name = T,
             title = paste("Top",Top_n,"markers in each cluster"))
 
+DE_files <- c("BladderCancer_Mouse_markers_clusters_logfc0.25.csv",
+              "BladderCancer_Human_357-Bladder_logfc0.25.csv",
+              "BladderCancer_Human_359-Bladder_logfc0.25.csv")
+Top_n = 10
+for(file in DE_files){
+        BladderCancer.markers = read.csv(paste0(path, file), row.names = 1)
+        top <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(Top_n, avg_logFC)
+        bottom <-  BladderCancer.markers %>% group_by(cluster) %>% top_n(-Top_n, avg_logFC)
+        top_bottom_10 <- rbind(top,bottom)
+        top_bottom_10 = top_bottom_10[order(top_bottom_10$cluster),]
+        write.csv(top_bottom_10,paste0(path,file))
+        
+}
 
 # Gene heatmap arrange by gene set ======================
 GeneSets = read.delim("data/seurat_resources/gene_set_Bladder_Cancer.txt",row.names =1,header = F,
