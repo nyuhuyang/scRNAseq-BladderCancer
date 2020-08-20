@@ -10,7 +10,7 @@ library(cowplot)
 library(magrittr)
 library(DoubletFinder)
 library(kableExtra)
-source("../R/Seurat3_functions.R")
+source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 # change the current plan to access parallelization

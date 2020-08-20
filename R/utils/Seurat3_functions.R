@@ -1236,7 +1236,15 @@ gg_color_hue <- function(n) {
 #' data(brainTxDbSets)
 #' brainTxDbSets_df <- list2df(brainTxDbSets)
 list2df <- function(list){
-    df <- do.call(rowr::cbind.fill, c(list, fill = NA))
+    cbind.fill <- function(...){
+        nm <- list(...)
+        nm <- lapply(nm, as.matrix)
+        n <- max(sapply(nm, nrow))
+        do.call(cbind, lapply(nm, function (x)
+            rbind(x, matrix(, n-nrow(x), ncol(x)))))
+    }
+    
+    df <- do.call(cbind.fill, list)
     names(df) = names(list)
     return(df)
 }
