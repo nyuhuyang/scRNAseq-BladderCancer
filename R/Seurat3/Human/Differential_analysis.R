@@ -11,7 +11,7 @@ library(reshape2)
 library(gplots)
 library(MAST)
 library(cowplot)
-source("../R/Seurat3_functions.R")
+source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 #3.1  Compare DE across all major cell types==================

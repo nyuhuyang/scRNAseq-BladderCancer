@@ -7,6 +7,7 @@ invisible(lapply(c("R.utils","Seurat","dplyr","kableExtra","readxl",
                    "scater","scran","BiocSingular"), function(x) {
         suppressPackageStartupMessages(library(x,character.only = T))
         }))
+source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat3_functions.R")
 source("R/utils/Seurat3_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
