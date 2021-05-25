@@ -1,6 +1,11 @@
 # scRNAseq-BladderCancer
 Collaboration with Bishoy Morris Faltas (bmf9003@med.cornell.edu) at Weill Cornell and David Mulholland (david.mulholland@mssm.edu) at Mount Sinai for Invasive Bladder Cancer project.
 
+## R Shinyapp
+
+<a href=https://weillcornellmed.shinyapps.io/Human_BladderCancer_ShinyCell > Human bladder </a> for Human<br />
+![](https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/doc/Rshiny_human_bladder.png)
+
 ## METHOD
 
 Single-cell RNA-seq data is pre-processed with the scater R package. Data normalization, unsupervised cell clustering, and differential expression analysis were carried out by the Seurat R package. Reference-based cell type annotation was carried out using the SingleR R package.
