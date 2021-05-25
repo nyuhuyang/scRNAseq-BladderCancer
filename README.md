@@ -3,8 +3,11 @@ Collaboration with Bishoy Morris Faltas (bmf9003@med.cornell.edu) at Weill Corne
 
 ## R Shinyapp
 
-<a href=https://weillcornellmed.shinyapps.io/Human_BladderCancer_ShinyCell > Human bladder </a> for Human<br />
+<a href=https://weillcornellmed.shinyapps.io/Human_BladderCancer_ShinyCell/ > Human bladder cance scRNA-seq</a><br />
 ![](https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/doc/Rshiny_human_bladder.png)
+
+<a href=https://weillcornellmed.shinyapps.io/Mouse_BladderCancer_ShinyCell/ > Human bladder cance scRNA-seq </a><br />
+![](https://github.com/nyuhuyang/scRNAseq-BladderCancer/blob/master/doc/Rshiny_mouse_bladder.png)
 
 ## METHOD
 
