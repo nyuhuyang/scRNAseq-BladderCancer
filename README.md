@@ -1,5 +1,6 @@
 # scRNAseq-BladderCancer
 Collaboration with Bishoy Morris Faltas (bmf9003@med.cornell.edu) at Weill Cornell and David Mulholland (david.mulholland@mssm.edu) at Mount Sinai for Invasive Bladder Cancer project.
+Publised in nature communication 2020 [Epithelial plasticity can generate multi-lineage phenotypes in human and murine bladder cancers](https://www.nature.com/articles/s41467-020-16162-3).
 
 ## R Shinyapp
 
